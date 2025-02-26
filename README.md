@@ -15,6 +15,9 @@ Email: mstf.akbal@gmail.com | Telegram: @chawresho | Instagram: mstf.akbal
 **Telegram**: @chawresho  
 **Instagram**: mstf.akbal  
 
+
+![Uygulama Ekran Görüntüsü](https://github.com/chawresh/Multi-Currency-Rich-Address-Finder-v2.0/blob/9f9ed8a6e889a106a38a69bca5d2256d4a239e7b/1.png)
+
 ---
 
 ## Description
