@@ -1,16 +1,6 @@
 # Multi Currency Rich Address Finder v2.0
 
-Developed by Mustafa AKBAL
-
-  ██████╗██╗  ██╗ █████╗ ██╗    ██╗██████╗ ███████╗███████╗██╗  ██╗
- ██╔════╝██║  ██║██╔══██╗██║    ██║██╔══██╗██╔════╝██╔════╝██║  ██║
- ██║     ███████║███████║██║ █╗ ██║██████╔╝█████╗  ███████╗███████║
- ██║     ██╔══██║██╔══██║██║███╗██║██╔══██╗██╔══╝  ╚════██║██╔══██║
- ╚██████╗██║  ██║██║  ██║╚███╔███╔╝██║  ██║███████╗███████║██║  ██║
-  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
- AUTHOR : Mustafa AKBAL e-mail: mstf.akbal@gmail.com 
- Telegram: @chawresho   Instagram: mstf.akbal
-
+![Uygulama Ekran Görüntüsü](https://github.com/chawresh/Multi-Currency-Rich-Address-Finder-v2.0/blob/5baa205d0ca9a68da0ca8098e27cdc76cb66b0da/3.png)
 
 **Author**: Mustafa AKBAL  
 **Email**: mstf.akbal@gmail.com  
