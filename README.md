@@ -7,7 +7,6 @@
 **Telegram**: @chawresho  
 **Instagram**: mstf.akbal  
 
-)
 
 ---
 
