@@ -38,7 +38,7 @@ Multi Currency Rich Address Finder is a Python-based tool designed to generate a
 6. Export found addresses or manage the database as needed.
 
 ![Uygulama Ekran Görüntüsü](https://github.com/chawresh/Multi-Currency-Rich-Address-Finder-v2.0/blob/9f9ed8a6e889a106a38a69bca5d2256d4a239e7b/1.png)
-![Uygulama Ekran Görüntüsü](https://github.com/chawresh/Multi-Currency-Rich-Address-Finder-v2.0/blob/fb16a750a9273e9225a2a3c0df08f6913a5af333/2.png
+![Uygulama Ekran Görüntüsü](https://github.com/chawresh/Multi-Currency-Rich-Address-Finder-v2.0/blob/fb16a750a9273e9225a2a3c0df08f6913a5af333/2.png)
 
 ---
 
