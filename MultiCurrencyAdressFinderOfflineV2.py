@@ -102,7 +102,7 @@ COIN_SYMBOLS = {
     DASH: "Đ DASH",
     ZEC: "ⓩ ZEC",
     LTC: "Ł LTC",
-    "ALL": "Hepsi"
+    "ALL": "ALL"
 }
 SUPPORTED_COINS = list(COIN_SYMBOLS.keys())[:-1]  # "ALL" hariç
 
