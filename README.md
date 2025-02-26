@@ -1,20 +1,15 @@
 Here's a polished and well-structured README for your GitHub repository based on the information you provided, written in Markdown format:
 markdown
 # Multi Currency Rich Address Finder v2.0
-
-Developed by Mustafa AKBAL
-██████╗██╗  ██╗ █████╗ ██╗    ██╗██████╗ ███████╗███████╗██╗  ██╗
-██╔════╝██║  ██║██╔══██╗██║    ██║██╔══██╗██╔════╝██╔════╝██║  ██║
-██║     ███████║███████║██║ █╗ ██║██████╔╝█████╗  ███████╗███████║
-██║     ██╔══██║██╔══██║██║███╗██║██╔══██╗██╔══╝  ╚════██║██╔══██║
-╚██████╗██║  ██║██║  ██║╚███╔███╔╝██║  ██║███████╗███████║██║  ██║
- ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
-
-**Author:** Mustafa AKBAL  
-**Email:** [mstf.akbal@gmail.com](mailto:mstf.akbal@gmail.com)  
-**Telegram:** [@chawresho](https://t.me/chawresho)  
-**Instagram:** [mstf.akbal](https://instagram.com/mstf.akbal)
-
+Developed by Mustafa AKBAL 
+                                             ██████╗██╗  ██╗ █████╗ ██╗    ██╗██████╗ ███████╗███████╗██╗  ██╗
+                                            ██╔════╝██║  ██║██╔══██╗██║    ██║██╔══██╗██╔════╝██╔════╝██║  ██║
+                                            ██║     ███████║███████║██║ █╗ ██║██████╔╝█████╗  ███████╗███████║
+                                            ██║     ██╔══██║██╔══██║██║███╗██║██╔══██╗██╔══╝  ╚════██║██╔══██║
+                                            ╚██████╗██║  ██║██║  ██║╚███╔███╔╝██║  ██║███████╗███████║██║  ██║
+                                             ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
+                                            AUTHOR : Mustafa AKBAL e-mail: mstf.akbal@gmail.com 
+                                            Telegram: @chawresho   Instagram: mstf.akbal
 ---
 
 ## Overview
@@ -35,26 +30,6 @@ This tool is ideal for blockchain enthusiasts, researchers, and developers looki
 - **Multilingual GUI:** Supports Turkish and English interfaces.
 - **Logging & Export:** Real-time logs and exportable results of found addresses.
 
----
-
-## Installation
-
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/[your-username]/multi-currency-rich-address-finder.git
-   cd multi-currency-rich-address-finder
-Install Dependencies:
-Ensure you have Python 3.8+ installed, then install the required libraries:
-bash
-pip install -r requirements.txt
-Required packages include:
-hdwallet
-PyQt5
-psutil
-Run the Application:
-bash
-python main.py
-Usage
 Launch the GUI:
 Start the program with the command above. The interface includes five tabs: Control, Logs, Found Addresses, Settings, and About.
 Configure Settings:
@@ -148,11 +123,5 @@ Acknowledgments
 Built with passion for the blockchain community. Special thanks to all supporters and users who help make this project better!
 Happy address hunting!
 
-### Notes:
-1. **Structure:** The README is organized into clear sections for easy navigation.
-2. **Formatting:** Uses Markdown for GitHub compatibility, with tables, code blocks, and bold/italic text for emphasis.
-3. **Customization:** Replace `[your-username]` in the clone URL with your actual GitHub username.
-4. **Requirements:** Add a `requirements.txt` file to your repo with the dependencies (`hdwallet`, `PyQt5`, `psutil`) for the installation step to work.
-5. **ASCII Art:** Kept as provided—it looks great!
 
 This README should effectively showcase your project on GitHub while providing all necessary information for users and contributors. Let me know if you'd like any adjustments!
