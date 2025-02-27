@@ -73,7 +73,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QPushButton, QLabel, QTextEdit, QSpinBox, QTabWidget, QMessageBox,
                              QTableWidget, QTableWidgetItem, QLineEdit, QFileDialog, QComboBox,
                              QStatusBar, QCheckBox)
-from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal, QTranslator
+from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal
 import sys
 import psutil
 from datetime import datetime
@@ -106,7 +106,7 @@ COIN_SYMBOLS = {
 }
 SUPPORTED_COINS = list(COIN_SYMBOLS.keys())[:-1]  # "ALL" hariç
 
-# Dil desteği için sözlük
+# Dil desteği için sözlük (Yeni anahtarlar eklendi)
 TRANSLATIONS = {
     "Türkçe": {
         "window_title": "Çoklu Para Birimi Zengin Adres Bulucu v2.0",
@@ -146,7 +146,20 @@ TRANSLATIONS = {
         "export_found": "Bulunan Adresleri Dışa Aktar",
         "language": "Dil:",
         "test_success": "Test başarılı! Private Key ile eşleşme bulundu: {0}",
-        "test_fail": "Test başarısız. Private Key ile eşleşme bulunamadı."
+        "test_fail": "Test başarısız. Private Key ile eşleşme bulunamadı.",
+        "test_address_found": "Test adresi bulundu: {0}",
+        "test_address_not_found": "Test adresi bulunamadı.",
+        "test_result_saved": "Test sonucu {0} dosyasına kaydedildi.",
+        "new_db_created": "Yeni veritabanı oluşturuldu: {0}",
+        "addresses_added": "{0} dosyasından {1} adres eklendi.",
+        "processes_started": "Cüzdan kontrol süreçleri başlatıldı.",
+        "processes_paused": "Cüzdan kontrol süreçleri duraklatıldı.",
+        "processes_resumed": "Cüzdan kontrol süreçleri devam ettirildi.",
+        "processes_stopped": "Cüzdan kontrol süreçleri durduruldu.",
+        "db_optimized": "Veritabanı başarıyla optimize edildi.",
+        "db_backup": "Veritabanı {0} yoluna yedeklendi.",
+        "db_restored": "Veritabanı {0} yolundan geri yüklendi.",
+        "selected_coins": "Seçilen kripto para birimleri: {0}"
     },
     "English": {
         "window_title": "Multi Currency Rich Address Finder v2.0",
@@ -186,7 +199,20 @@ TRANSLATIONS = {
         "export_found": "Export Found Addresses",
         "language": "Language:",
         "test_success": "Test successful! Match found with Private Key: {0}",
-        "test_fail": "Test failed. No match found with Private Key."
+        "test_fail": "Test failed. No match found with Private Key.",
+        "test_address_found": "Test address found: {0}",
+        "test_address_not_found": "Test address not found.",
+        "test_result_saved": "Test result saved to {0}.",
+        "new_db_created": "New database created: {0}",
+        "addresses_added": "Added {1} addresses from {0}.",
+        "processes_started": "Started wallet checking processes.",
+        "processes_paused": "Paused wallet checking processes.",
+        "processes_resumed": "Resumed wallet checking processes.",
+        "processes_stopped": "Stopped wallet checking processes.",
+        "db_optimized": "Database optimized successfully.",
+        "db_backup": "Database backed up to {0}.",
+        "db_restored": "Database restored from {0}.",
+        "selected_coins": "Selected cryptocurrencies: {0}"
     }
 }
 
@@ -381,13 +407,13 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
                 with open(file_path, "r", encoding="utf-8") as f:
-                    if delimiter == "None":  # Ayraç yoksa satır satır oku
+                    if delimiter == "None":
                         for line in f:
                             address = line.strip()
                             if address and len(address) > 20:
                                 cursor.execute("INSERT OR IGNORE INTO DataBase (PubKeys) VALUES (?)", (address,))
                                 added_count += conn.total_changes
-                    else:  # Ayraç varsa CSV olarak oku
+                    else:
                         reader = csv.reader(f, delimiter=delimiter)
                         for row in reader:
                             if len(row) > column_index:
@@ -480,7 +506,6 @@ def worker(db_filename: str, found_file: str, total_checked, lock, batch_size: i
                     f.write(f"Eşleşme bulundu! Private Key: {private_key}, Adres: {addr}\n")
                 found_queue.put((private_key, addr))
                 log_queue.put(f"{worker_name} eşleşme buldu: {addr}")
-                # Worker burada durmuyor, devam ediyor
 
 class LogThread(QThread):
     log_signal = pyqtSignal(str)
@@ -699,7 +724,7 @@ class WalletCheckerGUI(QMainWindow):
         self.update_count_btn = QPushButton("Update Address Count", clicked=self.update_address_count)
         settings_layout.addWidget(self.update_count_btn)
 
-        self.optimize_db_btn = QPushButton("Veritabanını Optimize Et" if self.current_language == "Türkçe" else "Optimize Database", clicked=self.optimize_database)
+        self.optimize_db_btn = QPushButton("Optimize Database", clicked=self.optimize_database)
         settings_layout.addWidget(self.optimize_db_btn)
 
         lang_layout = QHBoxLayout()
@@ -805,6 +830,7 @@ class WalletCheckerGUI(QMainWindow):
         self.update_stats()
 
     def test_database(self):
+        tr = TRANSLATIONS[self.current_language]
         if not os.path.exists(self.db_filename):
             self.create_new_db()
         
@@ -819,15 +845,17 @@ class WalletCheckerGUI(QMainWindow):
             return
 
         found_addresses = DatabaseManager.check_addresses(self.db_filename, addresses)
-        tr = TRANSLATIONS[self.current_language]
         
         if found_addresses:
             for addr in found_addresses:
-                self.append_log(f"Test adresi bulundu: {addr}")
+                self.append_log(tr["test_address_found"].format(addr))
+                with open(self.found_file, "a", encoding="utf-8") as f:
+                    f.write(f"Private Key: {test_private_key}, Adres: {addr}\n")
+                self.append_log(tr["test_result_saved"].format(self.found_file))
                 QMessageBox.information(self, "Test Sonucu" if self.current_language == "Türkçe" else "Test Result",
                                        tr["test_success"].format(addr))
         else:
-            self.append_log("Test adresi bulunamadı.")
+            self.append_log(tr["test_address_not_found"])
             QMessageBox.warning(self, "Test Sonucu" if self.current_language == "Türkçe" else "Test Result",
                                tr["test_fail"])
 
@@ -837,6 +865,7 @@ class WalletCheckerGUI(QMainWindow):
         self.save_config()
 
     def start_workers(self):
+        tr = TRANSLATIONS[self.current_language]
         if not self.running_flag.value:
             if not self.selected_coins:
                 QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
@@ -864,20 +893,21 @@ class WalletCheckerGUI(QMainWindow):
             self.start_btn.setEnabled(False)
             self.pause_btn.setEnabled(True)
             self.stop_btn.setEnabled(True)
-            self.append_log("Cüzdan kontrol süreçleri başlatıldı." if self.current_language == "Türkçe" else "Started wallet checking processes.")
+            self.append_log(tr["processes_started"])
 
     def pause_workers(self):
         tr = TRANSLATIONS[self.current_language]
         if self.running_flag.value:
             self.running_flag.value = False
             self.pause_btn.setText(tr["resume"])
-            self.append_log("Cüzdan kontrol süreçleri duraklatıldı." if self.current_language == "Türkçe" else "Paused wallet checking processes.")
+            self.append_log(tr["processes_paused"])
         else:
             self.running_flag.value = True
             self.pause_btn.setText(tr["pause"])
-            self.append_log("Cüzdan kontrol süreçleri devam ettirildi." if self.current_language == "Türkçe" else "Resumed wallet checking processes.")
+            self.append_log(tr["processes_resumed"])
 
     def stop_workers(self):
+        tr = TRANSLATIONS[self.current_language]
         if self.processes:
             for p in self.processes:
                 p.terminate()
@@ -887,9 +917,9 @@ class WalletCheckerGUI(QMainWindow):
             self.running_flag.value = False
             self.start_btn.setEnabled(True)
             self.pause_btn.setEnabled(False)
-            self.pause_btn.setText(TRANSLATIONS[self.current_language]["pause"])
+            self.pause_btn.setText(tr["pause"])
             self.stop_btn.setEnabled(False)
-            self.append_log("Cüzdan kontrol süreçleri durduruldu." if self.current_language == "Türkçe" else "Stopped wallet checking processes.")
+            self.append_log(tr["processes_stopped"])
             self.start_time = None
 
     def update_stats(self):
@@ -937,6 +967,7 @@ class WalletCheckerGUI(QMainWindow):
             self.save_config()
 
     def create_new_db(self) -> bool:
+        tr = TRANSLATIONS[self.current_language]
         self.db_filename = self.db_path_input.text()
         if not self.db_filename:
             QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
@@ -949,8 +980,8 @@ class WalletCheckerGUI(QMainWindow):
             if reply == QMessageBox.No:
                 return False
         if DatabaseManager.create_new_database(self.db_filename):
-            self.append_log(f"Yeni veritabanı oluşturuldu: {self.db_filename}")
-            self.status_bar.showMessage("Yeni veritabanı oluşturuldu" if self.current_language == "Türkçe" else "New database created")
+            self.append_log(tr["new_db_created"].format(self.db_filename))
+            self.status_bar.showMessage(tr["new_db_created"].format(self.db_filename))
             self.total_addresses = 0
             self.save_config()
             return True
@@ -960,6 +991,7 @@ class WalletCheckerGUI(QMainWindow):
             return False
 
     def add_addresses_from_file(self):
+        tr = TRANSLATIONS[self.current_language]
         file_path, _ = QFileDialog.getOpenFileName(self, "Adres Dosyası Seç" if self.current_language == "Türkçe" else "Select Address File", "", "Text Files (*.txt);;All Files (*)")
         if not file_path:
             return
@@ -987,7 +1019,7 @@ class WalletCheckerGUI(QMainWindow):
 
         added_count = self.db_manager.add_addresses_from_file(self.db_filename, file_path, column_index, delimiter)
         if added_count >= 0:
-            self.append_log(f"{file_path} dosyasından {added_count} adres eklendi." if self.current_language == "Türkçe" else f"Added {added_count} addresses from {file_path}")
+            self.append_log(tr["addresses_added"].format(file_path, added_count))
             self.status_bar.showMessage(f"{added_count} adres eklendi" if self.current_language == "Türkçe" else f"Added {added_count} addresses")
             self.update_address_count()
         else:
@@ -996,6 +1028,7 @@ class WalletCheckerGUI(QMainWindow):
             self.status_bar.showMessage("Adres ekleme başarısız" if self.current_language == "Türkçe" else "Failed to add addresses")
 
     def update_address_count(self):
+        tr = TRANSLATIONS[self.current_language]
         self.db_filename = self.db_path_input.text()
         if not os.path.exists(self.db_filename):
             reply = QMessageBox.question(self, "Veritabanı Bulunamadı" if self.current_language == "Türkçe" else "Database Not Found",
@@ -1007,9 +1040,10 @@ class WalletCheckerGUI(QMainWindow):
             else:
                 return
         self.status_bar.showMessage("Veritabanı kontrol ediliyor..." if self.current_language == "Türkçe" else "Checking database...")
-        self.loading_dialog = QMessageBox(self, windowTitle="Veritabanı Kontrolü" if self.current_language == "Türkçe" else "Checking Database",
-                                        text="Veritabanı kontrol ediliyor..." if self.current_language == "Türkçe" else "Checking database...",
-                                        standardButtons=QMessageBox.NoButton)
+        self.loading_dialog = QMessageBox(self)
+        self.loading_dialog.setWindowTitle("Veritabanı Kontrolü" if self.current_language == "Türkçe" else "Checking Database")
+        self.loading_dialog.setText("Veritabanı kontrol ediliyor..." if self.current_language == "Türkçe" else "Checking database...")
+        self.loading_dialog.setStandardButtons(QMessageBox.NoButton)
         self.loading_dialog.show()
 
         self.db_check_thread = DbCheckThread(self.db_filename)
@@ -1018,6 +1052,7 @@ class WalletCheckerGUI(QMainWindow):
         self.db_check_thread.start()
 
     def on_update_address_count_finished(self, total: int):
+        tr = TRANSLATIONS[self.current_language]
         self.total_addresses = total
         self.loading_dialog.accept()
         self.save_config()
@@ -1030,14 +1065,16 @@ class WalletCheckerGUI(QMainWindow):
         self.status_bar.showMessage("Veritabanı kontrolü başarısız" if self.current_language == "Türkçe" else "Database check failed")
 
     def optimize_database(self):
+        tr = TRANSLATIONS[self.current_language]
         if DatabaseManager.optimize_database(self.db_filename):
-            self.append_log("Veritabanı başarıyla optimize edildi." if self.current_language == "Türkçe" else "Database optimized successfully.")
+            self.append_log(tr["db_optimized"])
             self.update_address_count()
         else:
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                 "Veritabanı optimizasyonu başarısız!" if self.current_language == "Türkçe" else "Database optimization failed!")
 
     def backup_database(self):
+        tr = TRANSLATIONS[self.current_language]
         if not os.path.exists(self.db_filename):
             QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
                                "Yedeklenecek bir veritabanı yok!" if self.current_language == "Türkçe" else "No database to backup!")
@@ -1046,25 +1083,27 @@ class WalletCheckerGUI(QMainWindow):
         if backup_path:
             try:
                 shutil.copy(self.db_filename, backup_path)
-                self.append_log(f"Veritabanı {backup_path} yoluna yedeklendi." if self.current_language == "Türkçe" else f"Database backed up to {backup_path}")
-                self.status_bar.showMessage(f"{backup_path} yoluna yedeklendi" if self.current_language == "Türkçe" else f"Backup saved to {backup_path}")
+                self.append_log(tr["db_backup"].format(backup_path))
+                self.status_bar.showMessage(tr["db_backup"].format(backup_path))
             except Exception as e:
                 QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                     f"Veritabanı yedeklenemedi: {str(e)}" if self.current_language == "Türkçe" else f"Failed to backup database: {str(e)}")
 
     def restore_database(self):
+        tr = TRANSLATIONS[self.current_language]
         restore_path, _ = QFileDialog.getOpenFileName(self, "Yedek Dosyası Seç" if self.current_language == "Türkçe" else "Select Backup File", "", "SQLite Files (*.db);;All Files (*)")
         if restore_path:
             try:
                 shutil.copy(restore_path, self.db_filename)
                 self.update_address_count()
-                self.append_log(f"Veritabanı {restore_path} yolundan geri yüklendi." if self.current_language == "Türkçe" else f"Database restored from {restore_path}")
-                self.status_bar.showMessage(f"{restore_path} yolundan geri yüklendi" if self.current_language == "Türkçe" else f"Restored from {restore_path}")
+                self.append_log(tr["db_restored"].format(restore_path))
+                self.status_bar.showMessage(tr["db_restored"].format(restore_path))
             except Exception as e:
                 QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                     f"Veritabanı geri yüklenemedi: {str(e)}" if self.current_language == "Türkçe" else f"Failed to restore database: {str(e)}")
 
     def export_found_addresses(self):
+        tr = TRANSLATIONS[self.current_language]
         if self.found_table.rowCount() == 0:
             QMessageBox.information(self, "Dışa Aktar" if self.current_language == "Türkçe" else "Export",
                                    "Dışa aktarılacak adres yok." if self.current_language == "Türkçe" else "No addresses to export.")
@@ -1087,6 +1126,7 @@ class WalletCheckerGUI(QMainWindow):
         self.workers_spin.setEnabled(not state)
 
     def on_all_coins_changed(self, state: int):
+        tr = TRANSLATIONS[self.current_language]
         if state == Qt.Checked:
             self.selected_coins = SUPPORTED_COINS
             for coin in SUPPORTED_COINS:
@@ -1095,10 +1135,11 @@ class WalletCheckerGUI(QMainWindow):
             self.selected_coins = []
             for coin in SUPPORTED_COINS:
                 self.coin_checkboxes[coin].setChecked(False)
-        self.append_log(f"Seçilen kripto para birimleri: {[COIN_SYMBOLS[coin] for coin in self.selected_coins]}")
+        self.append_log(tr["selected_coins"].format([COIN_SYMBOLS[coin] for coin in self.selected_coins]))
         self.save_config()
 
     def on_coin_changed(self, coin: str, state: int):
+        tr = TRANSLATIONS[self.current_language]
         if state == Qt.Checked:
             if coin not in self.selected_coins:
                 self.selected_coins.append(coin)
@@ -1110,8 +1151,7 @@ class WalletCheckerGUI(QMainWindow):
         self.coin_checkboxes["ALL"].blockSignals(True)
         self.coin_checkboxes["ALL"].setChecked(all_checked)
         self.coin_checkboxes["ALL"].blockSignals(False)
-
-        self.append_log(f"Seçilen kripto para birimleri: {[COIN_SYMBOLS[coin] for coin in self.selected_coins]}")
+        self.append_log(tr["selected_coins"].format([COIN_SYMBOLS[coin] for coin in self.selected_coins]))
         self.save_config()
 
     def closeEvent(self, event):
