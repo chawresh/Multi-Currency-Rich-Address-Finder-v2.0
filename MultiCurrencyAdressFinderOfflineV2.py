@@ -59,6 +59,8 @@ THE USE OF THE SOFTWARE IMPLIES THAT YOU UNDERSTAND AND ACCEPT THIS DISCLAIMER O
 
 """
 
+
+
 import os
 import sqlite3
 import random
@@ -70,16 +72,18 @@ import shutil
 from multiprocessing import Process, Manager, current_process, Queue
 from hdwallet import HDWallet
 from hdwallet.symbols import BTC, ETH, TRX, DOGE, BCH, DASH, ZEC, LTC
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
                              QPushButton, QLabel, QTextEdit, QSpinBox, QTabWidget, QMessageBox,
                              QTableWidget, QTableWidgetItem, QLineEdit, QFileDialog, QComboBox,
-                             QStatusBar, QCheckBox, QProgressBar)
-from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal
+                             QStatusBar, QCheckBox, QProgressBar, QScrollArea)
+from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal, QUrl
+from PyQt5.QtGui import QDesktopServices, QPixmap, QPalette
 import sys
 import psutil
 from datetime import datetime
 from typing import List, Optional
-
+import qrcode
+import tempfile
 
 # Uygulama dizini
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,7 +97,6 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-
 
 # Sabitler
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
@@ -331,12 +334,14 @@ TRANSLATIONS = {
 ABOUT_TEXT = {
     "Türkçe": """
 ----------------------------------------
-        Çoklu Para Birimi Zengin Adres Bulucu v2.0
+        Proje Hakkında
 ----------------------------------------
 
-**Mustafa AKBAL tarafından oluşturuldu**
+**Mustafa AKBAL tarafından geliştirildi**
 
-BTC, ETH, TRX, DOGE, BCH, DASH, ZEC ve LTC için adres tarama ve Bitcoin Puzzle desteği ile.
+Çoklu Para Birimi Zengin Adres Bulucu v2.0, kripto para tutkunları ve blockchain meraklıları için tasarlanmış yenilikçi bir araçtır. Bitcoin (BTC), Ethereum (ETH), Tron (TRX), Dogecoin (DOGE), Bitcoin Cash (BCH), Dash (DASH), Zcash (ZEC) ve Litecoin (LTC) gibi popüler kripto para birimleri için adres tarama işlemlerini hızlı ve verimli bir şekilde gerçekleştirir. Ayrıca, Bitcoin'in çözülmemiş puzzle'larını çözmek için özel bir mod sunar ve bu alanda benzersiz bir deneyim sağlar.
+
+Bu proje, açık kaynak teknolojilerine dayanır ve çok iş parçacıklı yapısıyla yüksek performans sunar. Amacım, blockchain teknolojisinin potansiyelini keşfetmek ve kripto dünyasında yenilikçi çözümler sunmaktır. Gelecekte daha fazla coin desteği ve optimizasyonlar eklemeyi planlıyorum. Projeyi geliştirmeye devam etmek için sizin desteğiniz çok önemli!
 
 ----------------------------------------
 Geliştirici Bilgisi
@@ -346,23 +351,30 @@ E-posta: mstf.akbal@gmail.com
 Telegram: @chawresho  
 Instagram: mstf.akbal  
 
-Blockchain tutkunu bir разработчик. Fikirleriniz için bana ulaşın!
+Blockchain ve kripto para teknolojilerine tutkuyla bağlıyım. Sorularınız, önerileriniz veya iş birliği teklifleriniz için bana ulaşmaktan çekinmeyin!
 
 ----------------------------------------
 Özellikler
 ----------------------------------------
-- Çoklu coin desteği  
-- Çözülmemiş Bitcoin Puzzle tarama (ayrı sekmede)  
-- Hızlı, çok iş parçacıklı kontrol  
+- Birden fazla kripto para birimi için adres tarama  
+- Bitcoin Puzzle çözümü için özel tarama modu  
+- SQLite ile güçlü veritabanı yönetimi  
+- Çok iş parçacıklı, yüksek hızlı kontrol  
+- Kullanıcı dostu arayüz ve dil desteği (Türkçe/İngilizce)  
+- QR kod ile bağış kolaylığı  
+
+Aşağıdaki sosyal medya hesaplarımdan beni takip edebilir, geri bildirim gönderebilir veya bağış yaparak projeyi destekleyebilirsiniz!
 """,
     "English": """
 ----------------------------------------
-        Multi Currency Rich Address Finder v2.0
+        About the Project
 ----------------------------------------
 
 **Created by Mustafa AKBAL**
 
-Address scanning for BTC, ETH, TRX, DOGE, BCH, DASH, ZEC, LTC with unsolved Bitcoin Puzzle support.
+Multi Currency Rich Address Finder v2.0 is an innovative tool designed for cryptocurrency enthusiasts and blockchain explorers. It efficiently scans addresses for popular cryptocurrencies like Bitcoin (BTC), Ethereum (ETH), Tron (TRX), Dogecoin (DOGE), Bitcoin Cash (BCH), Dash (DASH), Zcash (ZEC), and Litecoin (LTC). Additionally, it offers a dedicated mode for solving Bitcoin's unsolved puzzles, delivering a unique experience in this field.
+
+Built on open-source technologies, this project leverages multithreading for high performance. My goal is to explore the potential of blockchain technology and provide innovative solutions in the crypto world. I plan to add support for more coins and further optimizations in the future. Your support is invaluable for continuing its development!
 
 ----------------------------------------
 Developer Info
@@ -372,14 +384,19 @@ Email: mstf.akbal@gmail.com
 Telegram: @chawresho  
 Instagram: mstf.akbal  
 
-Blockchain enthusiast. Contact me for ideas!
+I’m passionate about blockchain and cryptocurrency technologies. Feel free to reach out with questions, suggestions, or collaboration ideas!
 
 ----------------------------------------
 Features
 ----------------------------------------
-- Multi-coin support  
-- Unsolved Bitcoin Puzzle scanning (in a separate tab)  
-- Fast, multithreaded checking  
+- Address scanning for multiple cryptocurrencies  
+- Dedicated Bitcoin Puzzle solving mode  
+- Robust SQLite database management  
+- High-speed, multithreaded checking  
+- User-friendly interface with language support (Turkish/English)  
+- Donation convenience with QR codes  
+
+Follow me on social media below, send feedback, or support the project with a donation!
 """
 }
 
@@ -987,9 +1004,207 @@ class WalletCheckerGUI(QMainWindow):
     def create_about_tab(self) -> QWidget:
         about_tab = QWidget()
         about_layout = QVBoxLayout(about_tab)
-        self.about_text = QTextEdit(readOnly=True)
-        self.about_text.setText(ABOUT_TEXT[self.current_language])
-        about_layout.addWidget(self.about_text)
+
+        # Sistem temasını algıla (koyu mod mu açık mod mu)
+        is_dark_mode = QApplication.palette().color(QPalette.Window).lightness() < 128
+
+        # Tema renkleri
+        if is_dark_mode:
+            bg_color = "#212121"  # Koyu arka plan
+            text_color = "#E0E0E0"  # Açık metin
+            accent_color = "#4CAF50"  # Vurgu rengi (yeşil)
+            secondary_text_color = "#B0BEC5"  # İkincil metin
+            field_bg_color = "#424242"  # Alan arka planı
+        else:
+            bg_color = "#FAFAFA"  # Açık arka plan
+            text_color = "#263238"  # Koyu metin
+            accent_color = "#43A047"  # Vurgu rengi (yeşil)
+            secondary_text_color = "#546E7A"  # İkincil metin
+            field_bg_color = "#ECEFF1"  # Alan arka planı
+
+        # Başlık
+        title_layout = QHBoxLayout()
+        title_label = QLabel("Çoklu Para Birimi Zengin Adres Bulucu v2.0" if self.current_language == "Türkçe" else 
+                             "Multi Currency Rich Address Finder v2.0")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet(f"font-size: 22px; font-weight: bold; color: {text_color}; margin: 15px;")
+        title_layout.addWidget(title_label)
+        about_layout.addLayout(title_layout)
+
+        # Geliştirici ve Proje Bilgisi (Scroll Alanı)
+        about_scroll = QScrollArea()
+        about_content = QWidget()
+        about_content_layout = QVBoxLayout(about_content)
+
+        about_text = QTextEdit(readOnly=True)
+        about_text.setText(ABOUT_TEXT[self.current_language])
+        about_text.setStyleSheet(f"""
+            font-size: 14px; 
+            padding: 12px; 
+            border: 1px solid #CFD8DC; 
+            background-color: {bg_color}; 
+            color: {text_color}; 
+            border-radius: 5px;
+        """)
+        about_content_layout.addWidget(about_text)
+
+        # Sürüm ve Güncelleme Notları
+        version_label = QLabel("Sürüm: 2.0 (Mart 2025)" if self.current_language == "Türkçe" else 
+                               "Version: 2.0 (March 2025)")
+        version_label.setStyleSheet(f"font-size: 12px; color: {secondary_text_color}; margin-top: 5px;")
+        about_content_layout.addWidget(version_label)
+
+        update_notes = QLabel("Son Güncelleme: Çok iş parçacıklı performans iyileştirmeleri, Puzzle modu ve QR kod desteği eklendi." 
+                              if self.current_language == "Türkçe" else 
+                              "Last Update: Multithreaded performance improvements, Puzzle mode, and QR code support added.")
+        update_notes.setStyleSheet(f"font-size: 12px; color: {secondary_text_color};")
+        about_content_layout.addWidget(update_notes)
+
+        about_scroll.setWidget(about_content)
+        about_scroll.setWidgetResizable(True)
+        about_layout.addWidget(about_scroll)
+
+        # Sosyal Medya ve İletişim Düğmeleri
+        contact_layout = QHBoxLayout()
+        telegram_btn = QPushButton("Telegram: @chawresho")
+        telegram_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://t.me/chawresho")))
+        instagram_btn = QPushButton("Instagram: mstf.akbal")
+        instagram_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://instagram.com/mstf.akbal")))
+        email_btn = QPushButton("E-posta: mstf.akbal@gmail.com")
+        email_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("mailto:mstf.akbal@gmail.com")))
+
+        for btn in (telegram_btn, instagram_btn, email_btn):
+            btn.setStyleSheet(f"""
+                padding: 10px; 
+                background-color: {accent_color}; 
+                color: white; 
+                border-radius: 6px; 
+                font-size: 14px; 
+                margin: 5px;
+            """)
+            btn.setCursor(Qt.PointingHandCursor)
+        about_layout.addLayout(contact_layout)
+
+        # Geri Bildirim Butonu
+        feedback_btn = QPushButton("Geri Bildirim Gönder" if self.current_language == "Türkçe" else "Send Feedback")
+        feedback_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("mailto:mstf.akbal@gmail.com?subject=Geri Bildirim")))
+        feedback_btn.setStyleSheet("""
+            padding: 8px; 
+            background-color: #0288D1; 
+            color: white; 
+            border-radius: 6px; 
+            font-size: 14px; 
+            margin: 10px;
+        """)
+        feedback_btn.setCursor(Qt.PointingHandCursor)
+        about_layout.addWidget(feedback_btn, alignment=Qt.AlignCenter)
+
+        # Bağış Desteği
+        donation_label = QLabel("Bu projeyi beğendiyseniz, geliştirmeyi desteklemek için bağış yapabilirsiniz:" 
+                                if self.current_language == "Türkçe" else 
+                                "If you like this project, you can support its development with a donation:")
+        donation_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {text_color}; margin: 15px 0;")
+        about_layout.addWidget(donation_label)
+
+        # Bağış adresleri için kaydırılabilir alan (Grid düzeni ile)
+        donation_scroll = QScrollArea()
+        donation_content = QWidget()
+        donation_grid = QGridLayout(donation_content)
+
+        donation_addresses = {
+            "BTC p2pkh": "191QB72rS77vP8NC1EC11wWqKtkfbm5SM8",
+            "BTC p2wpkh": "bc1q2l29nc6puvuk0rn449wf6l8rm62wuxst7uvjeu",
+            "BTC p2wpkh_in_p2sh": "3AkjfoQn494K5FBdqMrnQRr4UsWji7Az62",
+            "BTC p2wsh_in_p2sh": "3Cf3J2jw4xx8DVuwHDiQuVrsRoroUgzd7M",
+            "BTC p2sh": "3LPo8JHFdXZxvyZDQiWxiWCvPYU4oUhyHz",
+            "BTC p2wsh": "bc1q47rduwq76v4fteqvxm8p9axq39nq25kurgwlyaefmyqz3nhyc8rscuhwwq",
+            "ETH/BSC/AVAX/POLYGON": "0x279f020A74BfE5Ba6a539B0f523D491A4122d18D",
+            "TRX": "TDahqcDTkM2qnfoCPfed1YhcB5Eocc2Cwe",
+            "DOGE": "DD9ViMyVjX2Cv8YnjpBZZhgSD2Uy1NQVbk",
+            "DASH p2pkh": "XihF1MgkPpLWY4xms7WDsUCdAELMiBXCFZ",
+            "ZEC p2pkh": "t1Rt1BSSzQRuWymR5wf189kckaYwkSSQAb1",
+            "LTC p2pkh": "LTEMSKLgWmMydw4MBNBJHxabY77wp1zyZ6",
+            "LTC p2sh": "MSbwSBhDaeRPjUq7WbWJY9TKiF4WpZbBd8",
+            "LTC p2wsh": "ltc1q47rduwq76v4fteqvxm8p9axq39nq25kurgwlyaefmyqz3nhyc8rsmce759",
+            "LTC p2wpkh": "ltc1q2l29nc6puvuk0rn449wf6l8rm62wuxst6qkkpv"
+        }
+
+        row = 0
+        for coin, address in donation_addresses.items():
+            # Coin adı
+            coin_label = QLabel(f"{coin}:")
+            coin_label.setStyleSheet(f"font-size: 12px; color: {text_color}; min-width: 150px;")
+            donation_grid.addWidget(coin_label, row, 0)
+
+            # Adres
+            addr_field = QLineEdit(address)
+            addr_field.setReadOnly(True)
+            addr_field.setStyleSheet(f"""
+                font-size: 12px; 
+                padding: 5px; 
+                background-color: {field_bg_color}; 
+                color: {text_color}; 
+                border: none; 
+                border-radius: 3px;
+            """)
+            donation_grid.addWidget(addr_field, row, 1)
+
+            # Kopyala Butonu
+            copy_btn = QPushButton("Kopyala" if self.current_language == "Türkçe" else "Copy")
+            copy_btn.setStyleSheet("""
+                padding: 5px; 
+                background-color: #0288D1; 
+                color: white; 
+                border-radius: 3px; 
+                font-size: 12px;
+            """)
+            copy_btn.clicked.connect(lambda _, text=address: QApplication.clipboard().setText(text))
+            copy_btn.setCursor(Qt.PointingHandCursor)
+            donation_grid.addWidget(copy_btn, row, 2)
+
+            # QR Kod
+            qr = qrcode.make(address)
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                qr.save(tmp_file.name, format="PNG")
+                qr_pixmap = QPixmap(tmp_file.name)
+                os.remove(tmp_file.name)  # Geçici dosyayı sil
+            qr_label = QLabel()
+            qr_label.setPixmap(qr_pixmap.scaled(50, 50, Qt.KeepAspectRatio))
+            qr_label.setToolTip(f"{coin} QR Kodu" if self.current_language == "Türkçe" else f"{coin} QR Code")
+            donation_grid.addWidget(qr_label, row, 3)
+
+            row += 1
+
+        donation_scroll.setWidget(donation_content)
+        donation_scroll.setWidgetResizable(True)
+        donation_scroll.setMaximumHeight(250)
+        about_layout.addWidget(donation_scroll)
+
+        # Proje İstatistikleri
+        stats_label = QLabel("Proje İstatistikleri" if self.current_language == "Türkçe" else "Project Statistics")
+        stats_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {text_color}; margin: 15px 0;")
+        about_layout.addWidget(stats_label)
+
+        stats_text = QLabel(f"Toplam Tarama: {self.total_checked.value + self.puzzle_total_checked.value} adres" 
+                            if self.current_language == "Türkçe" else 
+                            f"Total Scans: {self.total_checked.value + self.puzzle_total_checked.value} addresses")
+        stats_text.setStyleSheet(f"font-size: 12px; color: {secondary_text_color};")
+        about_layout.addWidget(stats_text)
+
+        # Katkıda Bulunanlar
+        contributors_label = QLabel("Katkıda Bulunanlar" if self.current_language == "Türkçe" else "Contributors")
+        contributors_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {text_color}; margin: 15px 0;")
+        about_layout.addWidget(contributors_label)
+
+        contributors_text = QLabel("Mustafa AKBAL - Geliştirici\nAçık Kaynak Topluluğu - Destek ve Fikirler" 
+                                   if self.current_language == "Türkçe" else 
+                                   "Mustafa AKBAL - Developer\nOpen Source Community - Support and Ideas")
+        contributors_text.setStyleSheet(f"font-size: 12px; color: {secondary_text_color};")
+        about_layout.addWidget(contributors_text)
+
+        # Boşluk ve Düzen
+        about_layout.addStretch()
+
         return about_tab
 
     def setup_logging(self):
@@ -1078,7 +1293,6 @@ class WalletCheckerGUI(QMainWindow):
         self.puzzle_start_btn.setText(tr["start"])
         self.puzzle_pause_btn.setText(tr["pause"])
         self.puzzle_stop_btn.setText(tr["stop"])
-        self.about_text.setText(ABOUT_TEXT[self.current_language])
         tabs = self.centralWidget().layout().itemAt(0).widget()
         tabs.setTabText(0, tr["control_tab"])
         tabs.setTabText(1, tr["logs_tab"])
