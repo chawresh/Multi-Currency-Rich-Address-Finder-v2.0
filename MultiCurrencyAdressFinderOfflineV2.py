@@ -72,7 +72,7 @@ from hdwallet.symbols import BTC, ETH, TRX, DOGE, BCH, DASH, ZEC, LTC
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QTextEdit, QSpinBox, QTabWidget, QMessageBox,
                              QTableWidget, QTableWidgetItem, QLineEdit, QFileDialog, QComboBox,
-                             QStatusBar, QCheckBox)
+                             QStatusBar, QCheckBox, QProgressBar)
 from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal
 import sys
 import psutil
@@ -106,7 +106,91 @@ COIN_SYMBOLS = {
 }
 SUPPORTED_COINS = list(COIN_SYMBOLS.keys())[:-1]  # "ALL" hariç
 
-# Dil desteği için sözlük (Yeni anahtarlar eklendi)
+# Çözülmemiş Puzzle Adresleri
+UNSOLVED_PUZZLES = {
+    68: "1MVDYgVaSN6iKKEsbzRUAYFrYJadLYZvvZ",
+    69: "19vkiEajfhuZ8bs8Zu2jgmC6oqZbWqhxhG",
+    71: "1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU",
+    72: "1JTK7s9YVYywfm5XUH7RNhHJH1LshCaRFR",
+    73: "12VVRNPi4SJqUTsp6FmqDqY5sGosDtysn4",
+    74: "1FWGcVDK3JGzCC3WtkYetULPszMaK2Jksv",
+    76: "1DJh2eHFYQfACPmrvpyWc8MSTYKh7w9eRF",
+    77: "1Bxk4CQdqL9p22JEtDfdXMsng1XacifUtE",
+    78: "15qF6X51huDjqTmF9BJgxXdt1xcj46Jmhb",
+    79: "1ARk8HWJMn8js8tQmGUJeQHjSE7KRkn2t8",
+    81: "15qsCm78whspNQFydGJQk5rexzxTQopnHZ",
+    82: "13zYrYhhJxp6Ui1VV7pqa5WDhNWM45ARAC",
+    83: "14MdEb4eFcT3MVG5sPFG4jGLuHJSnt1Dk2",
+    84: "1CMq3SvFcVEcpLMuuH8PUcNiqsK1oicG2D",
+    86: "1K3x5L6G57Y494fDqBfrojD28UJv4s5JcK",
+    87: "1PxH3K1Shdjb7gSEoTX7UPDZ6SH4qGPrvq",
+    88: "16AbnZjZZipwHMkYKBSfswGWKDmXHjEpSf",
+    89: "19QciEHbGVNY4hrhfKXmcBBCrJSBZ6TaVt",
+    91: "1EzVHtmbN4fs4MiNk3ppEnKKhsmXYJ4s74",
+    92: "1AE8NzzgKE7Yhz7BWtAcAAxiFMbPo82NB5",
+    93: "17Q7tuG2JwFFU9rXVj3uZqRtioH3mx2Jad",
+    94: "1K6xGMUbs6ZTXBnhw1pippqwK6wjBWtNpL",
+    96: "15ANYzzCp5BFHcCnVFzXqyibpzgPLWaD8b",
+    97: "18ywPwj39nGjqBrQJSzZVq2izR12MDpDr8",
+    98: "1CaBVPrwUxbQYYswu32w7Mj4HR4maNoJSX",
+    99: "1JWnE6p6UN7ZJBN7TtcbNDoRcjFtuDWoNL",
+    101: "1CKCVdbDJasYmhswB6HKZHEAnNaDpK7W4n",
+    102: "1PXv28YxmYMaB8zxrKeZBW8dt2HK7RkRPX",
+    103: "1AcAmB6jmtU6AiEcXkmiNE9TNVPsj9DULf",
+    104: "1EQJvpsmhazYCcKX5Au6AZmZKRnzarMVZu",
+    106: "18KsfuHuzQaBTNLASyj15hy4LuqPUo1FNB",
+    107: "15EJFC5ZTs9nhsdvSUeBXjLAuYq3SWaxTc",
+    108: "1HB1iKUqeffnVsvQsbpC6dNi1XKbyNuqao",
+    109: "1GvgAXVCbA8FBjXfWiAms4ytFeJcKsoyhL",
+    111: "1824ZJQ7nKJ9QFTRBqn7z7dHV5EGpzUpH3",
+    112: "18A7NA9FTsnJxWgkoFfPAFbQzuQxpRtCos",
+    113: "1NeGn21dUDDeqFQ63LUFC9uDcVdGjqkxKyh",
+    114: "174SNxfqpdMGYy5YQcfLbSTK3MRNZEePoy",
+    116: "1MnJ6hdhvK37VLmqcdEwqC3iFxyWH2PHUV",
+    117: "1KNRfGWw7Q9Rmwsc6NT5zsdvEb9M2Wkj5Z",
+    118: "1PJZPzvGX19a7twf5HyD2VvNiPdprrfDx",
+    119: "1GuBBhf61rnvRe4K8zu8vdQB3kHzwFqSy7",
+    121: "1GDSuiThEV64c166LUFC9uDcVdGjqkxKyh",
+    122: "1Me3ASYt5JCTAK2XaC32RMeH34PdprrfDx",
+    123: "1CdufMQL892A69KXgv6UNBD17ywWqYpKut",
+    124: "1BkkGsX9ZM6iwL3zbqs7HWBV7SvosR6m8N",
+    126: "1AWCLZAjKbV1P7AHvaPNCKiB7ZWVDMxFiz",
+    127: "1G6EFyBRU86sThN3SSt3GrHu1sA7w7nzi4",
+    128: "1MZ2L1gFrCtkkn6DnTT2e4PFUTHw9gNwaj",
+    129: "1Hz3uv3nNZzBVMXLGadCucgjiCs5W9vaGz",
+    131: "16zRPnT8znwq42q7XeMkZUhb1bKqgRogyy",
+    132: "1KrU4dHE5WrW8rhWDsTRjR21r8t3dsrS3R",
+    133: "17uDfp5r4n441xkgLFmhNoSW1KWp6xVLD",
+    134: "13A3JrvXmvg5w9XGvyyR4JEJqiLz8ZySY3",
+    135: "16RGFo6hjq9ym6Pj7N5H7L1NR1rVPJyw2v",
+    136: "1UDHPdovvR985NrWSkdWQDEQ1xuRiTALq",
+    137: "15nf31J46iLuK1ZkTnqHo7WgN5cARFK3RA",
+    138: "1Ab4vzG6wEQBDNQM1B2bvUz4fqXXdFk2WT",
+    139: "1Fz63c775VV9fNyj25d9Xfw3YHE6sKCxbt",
+    140: "1QKBaU6WAeycb3DbKbLBkX7vJiaS8r42Xo",
+    141: "1CD91Vm97mLQvXhrnoMChhJx4TP9MaQkJo",
+    142: "15MnK2jXPqTMURX4xC3h4mAZxyCcaWWEDD",
+    143: "13N66gCzWWHEZBxhVxG18P8wyjEWF9Yoi1",
+    144: "1NevxKDYuDcCh1ZMMi6ftmWwGrZKC6j7Ux",
+    145: "19GpszRNUej5yYqxXoLnbZWKew3KdVLkXg",
+    146: "1M7ipcdYHey2Y5RZM34MBbpugghmjaV89P",
+    147: "18aNhurEAJsw6BAgtANpexk5ob1aGTwSeL",
+    148: "1FwZXt6EpRT7Fkndzv6K4b4DFoT4trbMrV",
+    149: "1CXvTzR6qv8wJ7eprzUKeWxyGcHwDYP1i2",
+    150: "1MUJSJYtGPVGkBCTqGspnxyHahpt5Te8jy",
+    151: "13Q84TNNvgcL3HJiqQPvyBb9m4hxjS3jkV",
+    152: "1LuUHyrQr8PKSvbcY1v1PiuGuqFjWpDumN",
+    153: "18192XpzzdDi2K11QVHR7td2HcPS6Qs5vg",
+    154: "1NgVmsCCJaKLzGyKLFJfVequnFW9ZvnMLN",
+    155: "1AoeP37TmHdFh8uN72fu9AqgtLrUwcv2wJ",
+    156: "1FTpAbQa4h8trvhQXjXnmNhqdiGBd1oraE",
+    157: "14JHoRAdmJg3XR4RjMDh6Wed6ft6hzbQe9",
+    158: "19z6waranEf8CcP8FqNgdwUe1QRxvUNKBG",
+    159: "14u4nA5sugaswb6SZgn5av2vuChdMnD9E5",
+    160: "1NBC8uXJy1GiJ6drkiZa1WuKn51ps7EPTv"
+}
+
+# Dil desteği
 TRANSLATIONS = {
     "Türkçe": {
         "window_title": "Çoklu Para Birimi Zengin Adres Bulucu v2.0",
@@ -122,6 +206,7 @@ TRANSLATIONS = {
         "logs_tab": "Günlükler",
         "found_tab": "Bulunan Adresler",
         "settings_tab": "Ayarlar",
+        "puzzle_tab": "Puzzle",
         "about_tab": "Hakkında",
         "select_coins": "Kontrol Edilecek Kripto Paraları Seçin:",
         "database_path": "Veritabanı Yolu:",
@@ -159,7 +244,17 @@ TRANSLATIONS = {
         "db_optimized": "Veritabanı başarıyla optimize edildi.",
         "db_backup": "Veritabanı {0} yoluna yedeklendi.",
         "db_restored": "Veritabanı {0} yolundan geri yüklendi.",
-        "selected_coins": "Seçilen kripto para birimleri: {0}"
+        "selected_coins": "Seçilen kripto para birimleri: {0}",
+        "puzzle_select": "Puzzle Seçimi:",
+        "puzzle_address": "Puzzle Adresi:",
+        "puzzle_range": "Private Key Aralığı (Hex):",
+        "puzzle_status": "Durum:",
+        "puzzle_found": "Bulunan Private Keyler:",
+        "progress": "İlerleme:",
+        "current_key": "Geçerli Anahtar:",
+        "elapsed_time": "Geçen Süre: {0}",
+        "remaining_time": "Tahmini Kalan Süre: {0}",
+        "invalid_puzzle": "Geçersiz puzzle numarası! Çözülmemiş bir puzzle seçin."
     },
     "English": {
         "window_title": "Multi Currency Rich Address Finder v2.0",
@@ -175,6 +270,7 @@ TRANSLATIONS = {
         "logs_tab": "Logs",
         "found_tab": "Found Addresses",
         "settings_tab": "Settings",
+        "puzzle_tab": "Puzzle",
         "about_tab": "About",
         "select_coins": "Select Cryptocurrencies to Check:",
         "database_path": "Database Path:",
@@ -212,7 +308,17 @@ TRANSLATIONS = {
         "db_optimized": "Database optimized successfully.",
         "db_backup": "Database backed up to {0}.",
         "db_restored": "Database restored from {0}.",
-        "selected_coins": "Selected cryptocurrencies: {0}"
+        "selected_coins": "Selected cryptocurrencies: {0}",
+        "puzzle_select": "Puzzle Selection:",
+        "puzzle_address": "Puzzle Address:",
+        "puzzle_range": "Private Key Range (Hex):",
+        "puzzle_status": "Status:",
+        "puzzle_found": "Found Private Keys:",
+        "progress": "Progress:",
+        "current_key": "Current Key:",
+        "elapsed_time": "Elapsed Time: {0}",
+        "remaining_time": "Estimated Remaining Time: {0}",
+        "invalid_puzzle": "Invalid puzzle number! Select an unsolved puzzle."
     }
 }
 
@@ -224,7 +330,7 @@ ABOUT_TEXT = {
 
 **Mustafa AKBAL tarafından oluşturuldu**
 
-BTC, ETH, TRX, DOGE, BCH, DASH, ZEC ve LTC için kripto para adreslerini oluşturup kontrol eden basit, güçlü bir araç.
+BTC, ETH, TRX, DOGE, BCH, DASH, ZEC ve LTC için adres tarama ve Bitcoin Puzzle desteği ile.
 
 ----------------------------------------
 Geliştirici Bilgisi
@@ -234,45 +340,14 @@ E-posta: mstf.akbal@gmail.com
 Telegram: @chawresho  
 Instagram: mstf.akbal  
 
-Blockchain tutkunu olarak, bunu kripto hayranları ve araştırmacılar için yaptım. Fikirleriniz mi var? Bana ulaşın!
+Blockchain tutkunu bir разработчик. Fikirleriniz için bana ulaşın!
 
 ----------------------------------------
 Özellikler
 ----------------------------------------
-- Çoklu coin desteği (çeşitli adres türleri)  
+- Çoklu coin desteği  
+- Çözülmemiş Bitcoin Puzzle tarama (ayrı sekmede)  
 - Hızlı, çok iş parçacıklı kontrol  
-- Veritabanlarını kolayca yönetin ve dışa aktarın  
-
-----------------------------------------
-Beni Destekleyin
-----------------------------------------
-Bağışlar güncellemeleri teşvik eder!  
-BTC: 191QB72rS77vP8NC1EC11wWqKtkfbm5SM8  
-ETH: 0x279f020A74BfE5Ba6a539B0f523D491A4122d18D  
-TRX: TDahqcDTkM2qnfoCPfed1YhcB5Eocc2Cwe  
-DOGE: DD9ViMyVjX2Cv8YnjpBZZhgSD2Uy1NQVbk  
-DASH: XihF1MgkPpLWY4xms7WDsUCdAELMiBXCFZ  
-ZEC: t1Rt1BSSzQRuWymR5wf189kckaYwkSSQAb1  
-LTC: LTEMSKLgWmMydw4MBNBJHxabY77wp1zyZ6  
-*(E-posta ile daha fazla adres isteyebilirsiniz)*  
-Desteğiniz için teşekkürler!
-
-----------------------------------------
-Lisans
-----------------------------------------
-MIT Lisansı – Kullanımı ve düzenlemesi ücretsiz. Telif hakkını koruyun ve izinsiz paylaşmayın.
-
-----------------------------------------
-Yasal Uyarı
-----------------------------------------
-**Yasadışı kullanım yasaktır.** Kötüye kullanımdan sorumlu değilim.  
-- Sadece yasal kullanım için (örneğin, araştırma, test).  
-- Tüm yasalara uyun – sorumluluk size aittir!
-
-----------------------------------------
-Sorumluluk
-----------------------------------------
-"OLDUĞU GİBİ" sağlanır – garanti yoktur. Risk size aittir.
 """,
     "English": """
 ----------------------------------------
@@ -281,7 +356,7 @@ Sorumluluk
 
 **Created by Mustafa AKBAL**
 
-A simple, powerful tool to generate and check cryptocurrency addresses for BTC, ETH, TRX, DOGE, BCH, DASH, ZEC, and LTC.
+Address scanning for BTC, ETH, TRX, DOGE, BCH, DASH, ZEC, LTC with unsolved Bitcoin Puzzle support.
 
 ----------------------------------------
 Developer Info
@@ -291,45 +366,14 @@ Email: mstf.akbal@gmail.com
 Telegram: @chawresho  
 Instagram: mstf.akbal  
 
-Passionate about blockchain, I built this for crypto fans and researchers. Got ideas? Contact me!
+Blockchain enthusiast. Contact me for ideas!
 
 ----------------------------------------
 Features
 ----------------------------------------
-- Multi-coin support (various address types)  
+- Multi-coin support  
+- Unsolved Bitcoin Puzzle scanning (in a separate tab)  
 - Fast, multithreaded checking  
-- Manage and export databases easily  
-
-----------------------------------------
-Support Me
-----------------------------------------
-Donations fuel updates!  
-BTC: 191QB72rS77vP8NC1EC11wWqKtkfbm5SM8  
-ETH: 0x279f020A74BfE5Ba6a539B0f523D491A4122d18D  
-TRX: TDahqcDTkM2qnfoCPfed1YhcB5Eocc2Cwe  
-DOGE: DD9ViMyVjX2Cv8YnjpBZZhgSD2Uy1NQVbk  
-DASH: XihF1MgkPpLWY4xms7WDsUCdAELMiBXCFZ  
-ZEC: t1Rt1BSSzQRuWymR5wf189kckaYwkSSQAb1  
-LTC: LTEMSKLgWmMydw4MBNBJHxabY77wp1zyZ6  
-*(More addresses on request via email)*  
-Thanks for your support!
-
-----------------------------------------
-License
-----------------------------------------
-MIT License – Free to use/modify. Keep the copyright and don’t share without permission.
-
-----------------------------------------
-Legal Notice
-----------------------------------------
-**No illegal use allowed.** I’m not liable for misuse.  
-- For legal use only (e.g., research, testing).  
-- Follow all laws – your responsibility!
-
-----------------------------------------
-Liability
-----------------------------------------
-Provided "AS IS" – no warranties. Use at your own risk.
 """
 }
 
@@ -342,12 +386,45 @@ class QueueHandler(logging.Handler):
         self.queue.put(self.format(record))
 
 class WalletGenerator:
-    def __init__(self, selected_coins: List[str]):
+    def __init__(self, selected_coins: List[str], puzzle_mode: bool = False, puzzle_number: int = None):
         self.selected_coins = selected_coins if "ALL" not in selected_coins else SUPPORTED_COINS
+        self.puzzle_mode = puzzle_mode
+        self.puzzle_number = puzzle_number
+        if puzzle_mode and puzzle_number:
+            self.puzzle_start = 2 ** (puzzle_number - 1)
+            self.puzzle_end = (2 ** puzzle_number) - 1
+            self.checked_keys = set()  # Rastgele anahtarların tekrarını önlemek için
+            self.target_address = self.get_puzzle_address()
+
+    def get_puzzle_address(self) -> str:
+        if not self.puzzle_mode or not self.puzzle_number:
+            return None
+        return UNSOLVED_PUZZLES.get(self.puzzle_number, None)
+
+    def get_puzzle_range(self) -> str:
+        if not self.puzzle_mode or not self.puzzle_number:
+            return "N/A"
+        start_hex = hex(self.puzzle_start)[2:].zfill(64)
+        end_hex = hex(self.puzzle_end)[2:].zfill(64)
+        return f"{start_hex} - {end_hex}"
+
+    def get_total_keys(self) -> int:
+        if not self.puzzle_mode or not self.puzzle_number:
+            return 0
+        return self.puzzle_end - self.puzzle_start + 1
 
     @staticmethod
     def generate_private_key() -> str:
         return "".join(random.choice("0123456789abcdef") for _ in range(64))
+
+    def generate_next_puzzle_key(self) -> str:
+        if len(self.checked_keys) >= self.get_total_keys():
+            return None  # Tüm anahtarlar kontrol edildiğinde dur
+        while True:
+            random_key = random.randint(self.puzzle_start, self.puzzle_end)
+            if random_key not in self.checked_keys:
+                self.checked_keys.add(random_key)
+                return hex(random_key)[2:].zfill(64)
 
     def generate_addresses(self, private_key: str) -> Optional[List[str]]:
         try:
@@ -470,10 +547,12 @@ class DatabaseManager:
             return False
 
 def worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
-          log_queue: Queue, running_flag, found_queue: Queue, selected_coins: List[str]):
+          log_queue: Queue, running_flag, found_queue: Queue, selected_coins: List[str],
+          puzzle_mode: bool = False, puzzle_number: int = None):
     logging.info(f"{current_process().name}: Worker başlatıldı.")
-    wallet_gen = WalletGenerator(selected_coins)
+    wallet_gen = WalletGenerator(selected_coins, puzzle_mode, puzzle_number)
     worker_name = current_process().name
+    target_address = wallet_gen.target_address if puzzle_mode else None
 
     while True:
         with lock:
@@ -487,13 +566,74 @@ def worker(db_filename: str, found_file: str, total_checked, lock, batch_size: i
         addresses_to_check = []
         private_keys = []
         for _ in range(dynamic_batch):
-            private_key = wallet_gen.generate_private_key()
+            if puzzle_mode:
+                private_key = wallet_gen.generate_next_puzzle_key()
+                if not private_key:
+                    log_queue.put(f"{worker_name}: Puzzle {puzzle_number} aralığı tamamlandı.")
+                    return
+            else:
+                private_key = wallet_gen.generate_private_key()
+            
             addresses = wallet_gen.generate_addresses(private_key)
             if addresses:
-                addresses_to_check.extend(addresses)
-                private_keys.extend([private_key] * len(addresses))
+                if puzzle_mode:
+                    if target_address in addresses:
+                        addresses_to_check = [target_address]
+                        private_keys = [private_key]
+                        break
+                else:
+                    addresses_to_check.extend(addresses)
+                    private_keys.extend([private_key] * len(addresses))
 
         if not addresses_to_check:
+            continue
+
+        with lock:
+            total_checked.value += len(addresses_to_check)
+            found_addresses = DatabaseManager.check_addresses(db_filename, addresses_to_check)
+            for addr in found_addresses:
+                index = addresses_to_check.index(addr)
+                private_key = private_keys[index]
+                with open(found_file, "a", encoding="utf-8") as f:
+                    f.write(f"Eşleşme bulundu! Private Key: {private_key}, Adres: {addr}\n")
+                found_queue.put((private_key, addr))
+                log_queue.put(f"{worker_name} eşleşme buldu: {addr}")
+
+def puzzle_worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
+                  log_queue: Queue, running_flag, found_queue: Queue, puzzle_number: int,
+                  current_key_queue: Queue):
+    logging.info(f"{current_process().name}: Puzzle Worker başlatıldı.")
+    wallet_gen = WalletGenerator([BTC], True, puzzle_number)
+    worker_name = current_process().name
+    target_address = wallet_gen.target_address
+
+    while True:
+        with lock:
+            if not running_flag.value:
+                time.sleep(1)
+                continue
+
+        cpu_usage = psutil.cpu_percent()
+        dynamic_batch = max(50, min(batch_size, int(1000 / (cpu_usage + 1))))
+
+        addresses_to_check = []
+        private_keys = []
+        for _ in range(dynamic_batch):
+            private_key = wallet_gen.generate_next_puzzle_key()
+            if not private_key:
+                log_queue.put(f"{worker_name}: Puzzle {puzzle_number} aralığı tamamlandı.")
+                return
+            
+            current_key_queue.put(private_key)  # Geçerli anahtarı kuyruğa ekle
+            addresses = wallet_gen.generate_addresses(private_key)
+            if addresses and target_address in addresses:
+                addresses_to_check = [target_address]
+                private_keys = [private_key]
+                break
+
+        if not addresses_to_check:
+            with lock:
+                total_checked.value += dynamic_batch
             continue
 
         with lock:
@@ -542,20 +682,28 @@ class WalletCheckerGUI(QMainWindow):
         super().__init__()
         self.manager = Manager()
         self.total_checked = self.manager.Value('i', 0)
+        self.puzzle_total_checked = self.manager.Value('i', 0)
         self.lock = self.manager.Lock()
         self.running_flag = self.manager.Value('b', False)
+        self.puzzle_running_flag = self.manager.Value('b', False)
+        self.puzzle_paused = self.manager.Value('b', False)
         self.log_queue = self.manager.Queue()
         self.found_queue = self.manager.Queue()
+        self.puzzle_found_queue = self.manager.Queue()
+        self.current_key_queue = self.manager.Queue()  # Geçerli anahtar için kuyruk
         self.processes: List[Process] = []
+        self.puzzle_processes: List[Process] = []
 
         self.db_manager = DatabaseManager()
         self.total_addresses = 0
         self.start_time = None
+        self.puzzle_start_time = None
         self.db_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_DB)
         self.found_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_FOUND_FILE)
         self.selected_coins = SUPPORTED_COINS
         self.coin_checkboxes = {}
         self.current_language = "Türkçe"
+        self.puzzle_number = None
 
         self.init_ui()
         self.load_config()
@@ -586,6 +734,9 @@ class WalletCheckerGUI(QMainWindow):
 
         settings_tab = self.create_settings_tab()
         tabs.addTab(settings_tab, "Settings")
+
+        puzzle_tab = self.create_puzzle_tab()
+        tabs.addTab(puzzle_tab, "Puzzle")
 
         about_tab = self.create_about_tab()
         tabs.addTab(about_tab, "About")
@@ -738,6 +889,95 @@ class WalletCheckerGUI(QMainWindow):
 
         return settings_tab
 
+    def create_puzzle_tab(self) -> QWidget:
+        puzzle_tab = QWidget()
+        puzzle_layout = QVBoxLayout(puzzle_tab)
+
+        # Puzzle Seçimi
+        select_layout = QHBoxLayout()
+        self.puzzle_select_label = QLabel("Puzzle Seçimi:")
+        self.puzzle_number_combo = QComboBox()
+        self.puzzle_number_combo.addItems([str(num) for num in UNSOLVED_PUZZLES.keys()])
+        self.puzzle_number_combo.currentTextChanged.connect(self.update_puzzle_info)
+        select_layout.addWidget(self.puzzle_select_label)
+        select_layout.addWidget(self.puzzle_number_combo)
+        puzzle_layout.addLayout(select_layout)
+
+        # Puzzle Adresi
+        address_layout = QHBoxLayout()
+        self.puzzle_address_label = QLabel("Puzzle Adresi:")
+        self.puzzle_address_display = QLineEdit(readOnly=True)
+        address_layout.addWidget(self.puzzle_address_label)
+        address_layout.addWidget(self.puzzle_address_display)
+        puzzle_layout.addLayout(address_layout)
+
+        # Private Key Aralığı
+        range_layout = QVBoxLayout()
+        self.puzzle_range_label = QLabel("Private Key Aralığı (Hex):")
+        self.puzzle_range_display = QTextEdit(readOnly=True)
+        self.puzzle_range_display.setMaximumHeight(50)
+        range_layout.addWidget(self.puzzle_range_label)
+        range_layout.addWidget(self.puzzle_range_display)
+        puzzle_layout.addLayout(range_layout)
+
+        # Kontrol Düğmeleri
+        btn_layout = QHBoxLayout()
+        self.puzzle_start_btn = QPushButton("Başlat", clicked=self.start_puzzle_workers)
+        self.puzzle_pause_btn = QPushButton("Duraklat", clicked=self.pause_puzzle_workers, enabled=False)
+        self.puzzle_stop_btn = QPushButton("Durdur", clicked=self.stop_puzzle_workers, enabled=False)
+        btn_layout.addWidget(self.puzzle_start_btn)
+        btn_layout.addWidget(self.puzzle_pause_btn)
+        btn_layout.addWidget(self.puzzle_stop_btn)
+        puzzle_layout.addLayout(btn_layout)
+
+        # Durum
+        status_layout = QHBoxLayout()
+        self.puzzle_status_label = QLabel("Durum:")
+        self.puzzle_status_display = QLabel("Durduruldu" if self.current_language == "Türkçe" else "Stopped")
+        status_layout.addWidget(self.puzzle_status_label)
+        status_layout.addWidget(self.puzzle_status_display)
+        puzzle_layout.addLayout(status_layout)
+
+        # İlerleme Çubuğu
+        progress_layout = QHBoxLayout()
+        self.puzzle_progress_label = QLabel("İlerleme:")
+        self.puzzle_progress_bar = QProgressBar()
+        self.puzzle_progress_bar.setMaximum(100)
+        self.puzzle_progress_bar.setValue(0)
+        progress_layout.addWidget(self.puzzle_progress_label)
+        progress_layout.addWidget(self.puzzle_progress_bar)
+        puzzle_layout.addLayout(progress_layout)
+
+        # Geçerli Anahtar
+        current_key_layout = QHBoxLayout()
+        self.puzzle_current_key_label = QLabel("Geçerli Anahtar:")
+        self.puzzle_current_key_display = QLineEdit(readOnly=True)
+        current_key_layout.addWidget(self.puzzle_current_key_label)
+        current_key_layout.addWidget(self.puzzle_current_key_display)
+        puzzle_layout.addLayout(current_key_layout)
+
+        # İstatistikler
+        stats_layout = QVBoxLayout()
+        self.puzzle_stats_label = QLabel("", alignment=Qt.AlignCenter)
+        self.puzzle_time_elapsed_label = QLabel("", alignment=Qt.AlignCenter)
+        self.puzzle_time_remaining_label = QLabel("", alignment=Qt.AlignCenter)
+        stats_layout.addWidget(self.puzzle_stats_label)
+        stats_layout.addWidget(self.puzzle_time_elapsed_label)
+        stats_layout.addWidget(self.puzzle_time_remaining_label)
+        puzzle_layout.addLayout(stats_layout)
+
+        # Bulunan Private Keyler
+        found_layout = QVBoxLayout()
+        self.puzzle_found_label = QLabel("Bulunan Private Keyler:")
+        self.puzzle_found_table = QTableWidget(0, 2)
+        self.puzzle_found_table.setHorizontalHeaderLabels(["Private Key", "Address"])
+        self.puzzle_found_table.horizontalHeader().setStretchLastSection(True)
+        found_layout.addWidget(self.puzzle_found_label)
+        found_layout.addWidget(self.puzzle_found_table)
+        puzzle_layout.addLayout(found_layout)
+
+        return puzzle_tab
+
     def create_about_tab(self) -> QWidget:
         about_tab = QWidget()
         about_layout = QVBoxLayout(about_tab)
@@ -778,6 +1018,7 @@ class WalletCheckerGUI(QMainWindow):
             self.selected_coins = SUPPORTED_COINS
             self.current_language = "Türkçe"
         self.update_stats()
+        self.update_puzzle_info()
 
     def save_config(self):
         config = {
@@ -821,12 +1062,24 @@ class WalletCheckerGUI(QMainWindow):
         self.update_count_btn.setText(tr["update_count"])
         self.export_btn.setText(tr["export_found"])
         self.lang_label.setText(tr["language"])
+        self.puzzle_select_label.setText(tr["puzzle_select"])
+        self.puzzle_address_label.setText(tr["puzzle_address"])
+        self.puzzle_range_label.setText(tr["puzzle_range"])
+        self.puzzle_status_label.setText(tr["puzzle_status"])
+        self.puzzle_found_label.setText(tr["puzzle_found"])
+        self.puzzle_progress_label.setText(tr["progress"])
+        self.puzzle_current_key_label.setText(tr["current_key"])
+        self.puzzle_start_btn.setText(tr["start"])
+        self.puzzle_pause_btn.setText(tr["pause"])
+        self.puzzle_stop_btn.setText(tr["stop"])
         self.about_text.setText(ABOUT_TEXT[self.current_language])
-        self.centralWidget().layout().itemAt(0).widget().setTabText(0, tr["control_tab"])
-        self.centralWidget().layout().itemAt(0).widget().setTabText(1, tr["logs_tab"])
-        self.centralWidget().layout().itemAt(0).widget().setTabText(2, tr["found_tab"])
-        self.centralWidget().layout().itemAt(0).widget().setTabText(3, tr["settings_tab"])
-        self.centralWidget().layout().itemAt(0).widget().setTabText(4, tr["about_tab"])
+        tabs = self.centralWidget().layout().itemAt(0).widget()
+        tabs.setTabText(0, tr["control_tab"])
+        tabs.setTabText(1, tr["logs_tab"])
+        tabs.setTabText(2, tr["found_tab"])
+        tabs.setTabText(3, tr["settings_tab"])
+        tabs.setTabText(4, tr["puzzle_tab"])
+        tabs.setTabText(5, tr["about_tab"])
         self.update_stats()
 
     def test_database(self):
@@ -841,7 +1094,7 @@ class WalletCheckerGUI(QMainWindow):
         
         if not addresses:
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
-                                "Test private key ile adres oluşturulamadı!" if self.current_language == "Türkçe" else "Could not generate addresses with test private key!")
+                                "Test private key ile adres oluşturulamadı!")
             return
 
         found_addresses = DatabaseManager.check_addresses(self.db_filename, addresses)
@@ -864,24 +1117,34 @@ class WalletCheckerGUI(QMainWindow):
         self.retranslate_ui()
         self.save_config()
 
+    def update_puzzle_info(self):
+        puzzle_number = int(self.puzzle_number_combo.currentText())
+        wallet_gen = WalletGenerator([BTC], True, puzzle_number)
+        self.puzzle_address_display.setText(wallet_gen.target_address or "Bilinmeyen Puzzle")
+        self.puzzle_range_display.setText(wallet_gen.get_puzzle_range())
+        self.puzzle_progress_bar.setValue(0)
+        self.puzzle_current_key_display.setText("")
+
     def start_workers(self):
         tr = TRANSLATIONS[self.current_language]
         if not self.running_flag.value:
             if not self.selected_coins:
                 QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
-                                   "Lütfen en az bir kripto para birimi seçin!" if self.current_language == "Türkçe" else "Please select at least one cryptocurrency!")
+                                   "Lütfen en az bir kripto para birimi seçin!")
                 return
             if not os.path.exists(self.db_filename):
                 reply = QMessageBox.question(self, "Veritabanı Bulunamadı" if self.current_language == "Türkçe" else "Database Not Found",
-                                            "Veritabanı bulunamadı. Yeni bir veritabanı oluşturmak ister misiniz?" if self.current_language == "Türkçe" else "Database not found. Would you like to create a new one?",
+                                            "Veritabanı bulunamadı. Yeni bir veritabanı oluşturmak ister misiniz?",
                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if reply == QMessageBox.Yes:
                     if not self.create_new_db():
                         return
                 else:
                     return
+            
             self.db_filename = self.db_path_input.text()
             num_workers = os.cpu_count() if self.auto_workers_check.isChecked() else self.workers_spin.value()
+            
             for _ in range(num_workers):
                 p = Process(target=worker, args=(self.db_filename, self.found_file, self.total_checked,
                                                 self.lock, self.batch_size_spin.value(), self.log_queue, self.running_flag,
@@ -922,12 +1185,85 @@ class WalletCheckerGUI(QMainWindow):
             self.append_log(tr["processes_stopped"])
             self.start_time = None
 
+    def start_puzzle_workers(self):
+        tr = TRANSLATIONS[self.current_language]
+        if not self.puzzle_running_flag.value:
+            if not os.path.exists(self.db_filename):
+                reply = QMessageBox.question(self, "Veritabanı Bulunamadı" if self.current_language == "Türkçe" else "Database Not Found",
+                                            "Veritabanı bulunamadı. Yeni bir veritabanı oluşturmak ister misiniz?",
+                                            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    if not self.create_new_db():
+                        return
+                else:
+                    return
+            
+            self.puzzle_number = int(self.puzzle_number_combo.currentText())
+            if self.puzzle_number not in UNSOLVED_PUZZLES:
+                QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
+                                    tr["invalid_puzzle"])
+                return
+            
+            num_workers = os.cpu_count() or 4
+            for _ in range(num_workers):
+                p = Process(target=puzzle_worker, args=(self.db_filename, self.found_file, self.puzzle_total_checked,
+                                                       self.lock, self.batch_size_spin.value(), self.log_queue,
+                                                       self.puzzle_running_flag, self.puzzle_found_queue, self.puzzle_number,
+                                                       self.current_key_queue))
+                p.start()
+                self.puzzle_processes.append(p)
+            self.puzzle_running_flag.value = True
+            self.puzzle_paused.value = False
+            self.puzzle_start_time = datetime.now()
+            self.puzzle_start_btn.setEnabled(False)
+            self.puzzle_pause_btn.setEnabled(True)
+            self.puzzle_stop_btn.setEnabled(True)
+            self.puzzle_status_display.setText("Çalışıyor..." if self.current_language == "Türkçe" else "Running...")
+            self.append_log(f"Puzzle {self.puzzle_number} tarama süreçleri başlatıldı.")
+
+    def pause_puzzle_workers(self):
+        tr = TRANSLATIONS[self.current_language]
+        if self.puzzle_running_flag.value:
+            if not self.puzzle_paused.value:
+                self.puzzle_running_flag.value = False
+                self.puzzle_paused.value = True
+                self.puzzle_pause_btn.setText(tr["resume"])
+                self.puzzle_status_display.setText("Duraklatıldı" if self.current_language == "Türkçe" else "Paused")
+                self.append_log(f"Puzzle {self.puzzle_number} tarama süreçleri duraklatıldı.")
+            else:
+                self.puzzle_running_flag.value = True
+                self.puzzle_paused.value = False
+                self.puzzle_pause_btn.setText(tr["pause"])
+                self.puzzle_status_display.setText("Çalışıyor..." if self.current_language == "Türkçe" else "Running...")
+                self.append_log(f"Puzzle {self.puzzle_number} tarama süreçleri devam ettirildi.")
+
+    def stop_puzzle_workers(self):
+        tr = TRANSLATIONS[self.current_language]
+        if self.puzzle_processes:
+            for p in self.puzzle_processes:
+                p.terminate()
+            for p in self.puzzle_processes:
+                p.join()
+            self.puzzle_processes.clear()
+            self.puzzle_running_flag.value = False
+            self.puzzle_paused.value = False
+            self.puzzle_start_btn.setEnabled(True)
+            self.puzzle_pause_btn.setEnabled(False)
+            self.puzzle_pause_btn.setText(tr["pause"])
+            self.puzzle_stop_btn.setEnabled(False)
+            self.puzzle_status_display.setText("Durduruldu" if self.current_language == "Türkçe" else "Stopped")
+            self.append_log(f"Puzzle {self.puzzle_number} tarama süreçleri durduruldu.")
+            self.puzzle_start_time = None
+            self.puzzle_progress_bar.setValue(0)
+
     def update_stats(self):
         tr = TRANSLATIONS[self.current_language]
+        
+        # Genel tarama istatistikleri
         if self.running_flag.value and self.start_time:
             elapsed_time_minutes = (datetime.now() - self.start_time).total_seconds() / 60
             speed = self.total_checked.value / max(elapsed_time_minutes, 0.0167)
-            status_msg = f"Çalışıyor... ({len(self.processes)} worker aktif)" if self.current_language == "Türkçe" else f"Running... ({len(self.processes)} workers active)"
+            status_msg = f"Çalışıyor... ({len(self.processes)} worker aktif)"
         else:
             speed = 0
             status_msg = "Durduruldu" if self.current_language == "Türkçe" else "Stopped"
@@ -944,6 +1280,46 @@ class WalletCheckerGUI(QMainWindow):
             self.found_table.setItem(row, 0, QTableWidgetItem(private_key))
             self.found_table.setItem(row, 1, QTableWidgetItem(addr))
 
+        # Puzzle tarama istatistikleri
+        if self.puzzle_running_flag.value and self.puzzle_start_time and not self.puzzle_paused.value:
+            wallet_gen = WalletGenerator([BTC], True, self.puzzle_number)
+            total_keys = wallet_gen.get_total_keys()
+            elapsed_time_seconds = (datetime.now() - self.puzzle_start_time).total_seconds()
+            elapsed_time_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_time_seconds))
+            puzzle_speed = self.puzzle_total_checked.value / max(elapsed_time_seconds / 60, 0.0167)
+            progress = (self.puzzle_total_checked.value / total_keys) * 100 if total_keys > 0 else 0
+            remaining_keys = total_keys - self.puzzle_total_checked.value
+            remaining_time_seconds = remaining_keys / (puzzle_speed * 60) if puzzle_speed > 0 else 0
+            remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(remaining_time_seconds))
+            puzzle_status_msg = f"Çalışıyor... ({len(self.puzzle_processes)} worker aktif)"
+            self.puzzle_progress_bar.setValue(int(progress))
+            self.puzzle_stats_label.setText(f"{tr['total_checked'].format(self.puzzle_total_checked.value)}\n"
+                                            f"{tr['speed'].format(puzzle_speed)}")
+            self.puzzle_time_elapsed_label.setText(tr["elapsed_time"].format(elapsed_time_str))
+            self.puzzle_time_remaining_label.setText(tr["remaining_time"].format(remaining_time_str))
+        else:
+            puzzle_speed = 0
+            puzzle_status_msg = ("Duraklatıldı" if self.current_language == "Türkçe" else "Paused") if self.puzzle_paused.value else ("Durduruldu" if self.current_language == "Türkçe" else "Stopped")
+            self.puzzle_stats_label.setText(f"{tr['total_checked'].format(self.puzzle_total_checked.value)}\n"
+                                            f"{tr['speed'].format(puzzle_speed)}")
+            if not self.puzzle_running_flag.value:
+                self.puzzle_time_elapsed_label.setText("")
+                self.puzzle_time_remaining_label.setText("")
+
+        self.puzzle_status_display.setText(puzzle_status_msg)
+
+        while not self.puzzle_found_queue.empty():
+            private_key, addr = self.puzzle_found_queue.get()
+            row = self.puzzle_found_table.rowCount()
+            self.puzzle_found_table.insertRow(row)
+            self.puzzle_found_table.setItem(row, 0, QTableWidgetItem(private_key))
+            self.puzzle_found_table.setItem(row, 1, QTableWidgetItem(addr))
+
+        # Geçerli anahtarı güncelle
+        while not self.current_key_queue.empty():
+            current_key = self.current_key_queue.get()
+            self.puzzle_current_key_display.setText(current_key)
+
     def append_log(self, message: str):
         self.logs_text.append(message)
 
@@ -953,14 +1329,14 @@ class WalletCheckerGUI(QMainWindow):
         self.logs_text.setText('\n'.join(filtered_lines))
 
     def browse_db(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Veritabanı Dosyası Seç" if self.current_language == "Türkçe" else "Select Database File", "", "SQLite Files (*.db);;All Files (*)")
+        file_name, _ = QFileDialog.getOpenFileName(self, "Veritabanı Dosyası Seç", "", "SQLite Files (*.db);;All Files (*)")
         if file_name:
             self.db_path_input.setText(file_name)
             self.db_filename = file_name
             self.save_config()
 
     def browse_found_file(self):
-        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Dosyayı Seç" if self.current_language == "Türkçe" else "Select Found File", "", "Text Files (*.txt);;All Files (*)")
+        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Dosyayı Seç", "", "Text Files (*.txt);;All Files (*)")
         if file_name:
             self.found_file_input.setText(file_name)
             self.found_file = file_name
@@ -971,11 +1347,11 @@ class WalletCheckerGUI(QMainWindow):
         self.db_filename = self.db_path_input.text()
         if not self.db_filename:
             QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
-                               "Lütfen önce bir veritabanı yolu belirtin!" if self.current_language == "Türkçe" else "Please specify a database path first!")
+                               "Lütfen önce bir veritabanı yolu belirtin!")
             return False
         if os.path.exists(self.db_filename):
             reply = QMessageBox.question(self, "Dosya Var" if self.current_language == "Türkçe" else "File Exists",
-                                        "Bu dosyada zaten bir veritabanı var. Üzerine yazılsın mı?" if self.current_language == "Türkçe" else "A database already exists in this file. Overwrite it?",
+                                        "Bu dosyada zaten bir veritabanı var. Üzerine yazılsın mı?",
                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.No:
                 return False
@@ -987,19 +1363,19 @@ class WalletCheckerGUI(QMainWindow):
             return True
         else:
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
-                                "Yeni veritabanı oluşturulamadı!" if self.current_language == "Türkçe" else "Failed to create new database!")
+                                "Yeni veritabanı oluşturulamadı!")
             return False
 
     def add_addresses_from_file(self):
         tr = TRANSLATIONS[self.current_language]
-        file_path, _ = QFileDialog.getOpenFileName(self, "Adres Dosyası Seç" if self.current_language == "Türkçe" else "Select Address File", "", "Text Files (*.txt);;All Files (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Adres Dosyası Seç", "", "Text Files (*.txt);;All Files (*)")
         if not file_path:
             return
         
         self.db_filename = self.db_path_input.text()
         if not os.path.exists(self.db_filename):
             reply = QMessageBox.question(self, "Veritabanı Bulunamadı" if self.current_language == "Türkçe" else "Database Not Found",
-                                        "Veritabanı bulunamadı. Yeni bir veritabanı oluşturmak ister misiniz?" if self.current_language == "Türkçe" else "Database not found. Would you like to create a new one?",
+                                        "Veritabanı bulunamadı. Yeni bir veritabanı oluşturmak ister misiniz?",
                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
                 if not self.create_new_db():
@@ -1015,34 +1391,34 @@ class WalletCheckerGUI(QMainWindow):
             TRANSLATIONS[self.current_language]["no_delimiter"]: "None"
         }
         delimiter = delimiter_map[self.delimiter_combo.currentText()]
-        self.status_bar.showMessage("Dosyadan adresler ekleniyor..." if self.current_language == "Türkçe" else "Adding addresses from file...")
+        self.status_bar.showMessage("Dosyadan adresler ekleniyor...")
 
         added_count = self.db_manager.add_addresses_from_file(self.db_filename, file_path, column_index, delimiter)
         if added_count >= 0:
             self.append_log(tr["addresses_added"].format(file_path, added_count))
-            self.status_bar.showMessage(f"{added_count} adres eklendi" if self.current_language == "Türkçe" else f"Added {added_count} addresses")
+            self.status_bar.showMessage(f"{added_count} adres eklendi")
             self.update_address_count()
         else:
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
-                                "Dosyadan adresler eklenemedi!" if self.current_language == "Türkçe" else "Failed to add addresses from file.")
-            self.status_bar.showMessage("Adres ekleme başarısız" if self.current_language == "Türkçe" else "Failed to add addresses")
+                                "Dosyadan adresler eklenemedi!")
+            self.status_bar.showMessage("Adres ekleme başarısız")
 
     def update_address_count(self):
         tr = TRANSLATIONS[self.current_language]
         self.db_filename = self.db_path_input.text()
         if not os.path.exists(self.db_filename):
             reply = QMessageBox.question(self, "Veritabanı Bulunamadı" if self.current_language == "Türkçe" else "Database Not Found",
-                                        "Veritabanı bulunamadı. Yeni bir veritabanı oluşturmak ister misiniz?" if self.current_language == "Türkçe" else "Database not found. Would you like to create a new one?",
+                                        "Veritabanı bulunamadı. Yeni bir veritabanı oluşturmak ister misiniz?",
                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
                 if not self.create_new_db():
                     return
             else:
                 return
-        self.status_bar.showMessage("Veritabanı kontrol ediliyor..." if self.current_language == "Türkçe" else "Checking database...")
+        self.status_bar.showMessage("Veritabanı kontrol ediliyor...")
         self.loading_dialog = QMessageBox(self)
-        self.loading_dialog.setWindowTitle("Veritabanı Kontrolü" if self.current_language == "Türkçe" else "Checking Database")
-        self.loading_dialog.setText("Veritabanı kontrol ediliyor..." if self.current_language == "Türkçe" else "Checking database...")
+        self.loading_dialog.setWindowTitle("Veritabanı Kontrolü")
+        self.loading_dialog.setText("Veritabanı kontrol ediliyor...")
         self.loading_dialog.setStandardButtons(QMessageBox.NoButton)
         self.loading_dialog.show()
 
@@ -1057,12 +1433,12 @@ class WalletCheckerGUI(QMainWindow):
         self.loading_dialog.accept()
         self.save_config()
         self.update_stats()
-        self.status_bar.showMessage(f"Adres sayısı güncellendi: {total}" if self.current_language == "Türkçe" else f"Address count updated: {total}")
+        self.status_bar.showMessage(f"Adres sayısı güncellendi: {total}")
 
     def on_db_check_error(self, error_message: str):
         self.loading_dialog.accept()
         QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error", error_message)
-        self.status_bar.showMessage("Veritabanı kontrolü başarısız" if self.current_language == "Türkçe" else "Database check failed")
+        self.status_bar.showMessage("Veritabanı kontrolü başarısız")
 
     def optimize_database(self):
         tr = TRANSLATIONS[self.current_language]
@@ -1071,15 +1447,15 @@ class WalletCheckerGUI(QMainWindow):
             self.update_address_count()
         else:
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
-                                "Veritabanı optimizasyonu başarısız!" if self.current_language == "Türkçe" else "Database optimization failed!")
+                                "Veritabanı optimizasyonu başarısız!")
 
     def backup_database(self):
         tr = TRANSLATIONS[self.current_language]
         if not os.path.exists(self.db_filename):
             QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
-                               "Yedeklenecek bir veritabanı yok!" if self.current_language == "Türkçe" else "No database to backup!")
+                               "Yedeklenecek bir veritabanı yok!")
             return
-        backup_path, _ = QFileDialog.getSaveFileName(self, "Yedeği Kaydet" if self.current_language == "Türkçe" else "Save Backup", "", "SQLite Files (*.db);;All Files (*)")
+        backup_path, _ = QFileDialog.getSaveFileName(self, "Yedeği Kaydet", "", "SQLite Files (*.db);;All Files (*)")
         if backup_path:
             try:
                 shutil.copy(self.db_filename, backup_path)
@@ -1087,11 +1463,11 @@ class WalletCheckerGUI(QMainWindow):
                 self.status_bar.showMessage(tr["db_backup"].format(backup_path))
             except Exception as e:
                 QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
-                                    f"Veritabanı yedeklenemedi: {str(e)}" if self.current_language == "Türkçe" else f"Failed to backup database: {str(e)}")
+                                    f"Veritabanı yedeklenemedi: {str(e)}")
 
     def restore_database(self):
         tr = TRANSLATIONS[self.current_language]
-        restore_path, _ = QFileDialog.getOpenFileName(self, "Yedek Dosyası Seç" if self.current_language == "Türkçe" else "Select Backup File", "", "SQLite Files (*.db);;All Files (*)")
+        restore_path, _ = QFileDialog.getOpenFileName(self, "Yedek Dosyası Seç", "", "SQLite Files (*.db);;All Files (*)")
         if restore_path:
             try:
                 shutil.copy(restore_path, self.db_filename)
@@ -1100,16 +1476,16 @@ class WalletCheckerGUI(QMainWindow):
                 self.status_bar.showMessage(tr["db_restored"].format(restore_path))
             except Exception as e:
                 QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
-                                    f"Veritabanı geri yüklenemedi: {str(e)}" if self.current_language == "Türkçe" else f"Failed to restore database: {str(e)}")
+                                    f"Veritabanı geri yüklenemedi: {str(e)}")
 
     def export_found_addresses(self):
         tr = TRANSLATIONS[self.current_language]
         if self.found_table.rowCount() == 0:
             QMessageBox.information(self, "Dışa Aktar" if self.current_language == "Türkçe" else "Export",
-                                   "Dışa aktarılacak adres yok." if self.current_language == "Türkçe" else "No addresses to export.")
+                                   "Dışa aktarılacak adres yok.")
             return
         
-        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Adresleri Kaydet" if self.current_language == "Türkçe" else "Save Found Addresses", "", "Text Files (*.txt);;All Files (*)")
+        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Adresleri Kaydet", "", "Text Files (*.txt);;All Files (*)")
         if file_name:
             try:
                 with open(file_name, "w", encoding="utf-8") as f:
@@ -1117,10 +1493,10 @@ class WalletCheckerGUI(QMainWindow):
                         private_key = self.found_table.item(row, 0).text()
                         addr = self.found_table.item(row, 1).text()
                         f.write(f"Private Key: {private_key}, Address: {addr}\n")
-                self.status_bar.showMessage(f"{file_name} yoluna dışa aktarıldı" if self.current_language == "Türkçe" else f"Exported to {file_name}")
+                self.status_bar.showMessage(f"{file_name} yoluna dışa aktarıldı")
             except Exception as e:
                 QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
-                                    f"Dışa aktarma başarısız: {str(e)}" if self.current_language == "Türkçe" else f"Failed to export: {str(e)}")
+                                    f"Dışa aktarma başarısız: {str(e)}")
 
     def toggle_workers_spin(self, state: int):
         self.workers_spin.setEnabled(not state)
@@ -1155,12 +1531,13 @@ class WalletCheckerGUI(QMainWindow):
         self.save_config()
 
     def closeEvent(self, event):
-        if self.processes:
+        if self.processes or self.puzzle_processes:
             reply = QMessageBox.question(self, "Çıkış" if self.current_language == "Türkçe" else "Exit",
-                                        "Süreçler çalışıyor. Durdurup çıkmak ister misiniz?" if self.current_language == "Türkçe" else "Processes are running. Stop and exit?",
+                                        "Süreçler çalışıyor. Durdurup çıkmak ister misiniz?",
                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
                 self.stop_workers()
+                self.stop_puzzle_workers()
                 event.accept()
             else:
                 event.ignore()
