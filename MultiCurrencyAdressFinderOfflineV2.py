@@ -80,6 +80,7 @@ import psutil
 from datetime import datetime
 from typing import List, Optional
 
+
 # Uygulama dizini
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -88,10 +89,11 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler(os.path.join(BASE_DIR, "app.log")),
+        logging.FileHandler("app.log"),
         logging.StreamHandler()
     ]
 )
+
 
 # Sabitler
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
@@ -515,7 +517,6 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_pubkeys ON DataBase (PubKeys)")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_pubkeys_prefix ON DataBase (SUBSTR(PubKeys, 1, 6))")
                 conn.commit()
             logging.info(f"Yeni veritabanı oluşturuldu: {db_filename}")
             return True
@@ -543,7 +544,6 @@ class DatabaseManager:
             with sqlite3.connect(db_filename) as conn:
                 cursor = conn.cursor()
                 cursor.execute("REINDEX idx_pubkeys")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_pubkeys_prefix ON DataBase (SUBSTR(PubKeys, 1, 6))")
                 cursor.execute("DELETE FROM DataBase WHERE PubKeys IN (SELECT PubKeys FROM DataBase GROUP BY PubKeys HAVING COUNT(*) > 1)")
                 conn.commit()
             logging.info(f"Veritabanı optimize edildi: {db_filename}")
@@ -567,9 +567,7 @@ def worker(db_filename: str, found_file: str, total_checked, lock, batch_size: i
                 continue
 
         cpu_usage = psutil.cpu_percent()
-        memory = psutil.virtual_memory()
-        min_batch = max(10, int(memory.available / (1024 * 1024 * 10)))  # 10MB başına 1 birim
-        dynamic_batch = max(min_batch, min(batch_size, int(1000 / (cpu_usage + 1))))
+        dynamic_batch = max(50, min(batch_size, int(1000 / (cpu_usage + 1))))
 
         addresses_to_check = []
         private_keys = []
@@ -622,9 +620,7 @@ def puzzle_worker(db_filename: str, found_file: str, total_checked, lock, batch_
                 continue
 
         cpu_usage = psutil.cpu_percent()
-        memory = psutil.virtual_memory()
-        min_batch = max(10, int(memory.available / (1024 * 1024 * 10)))  # 10MB başına 1 birim
-        dynamic_batch = max(min_batch, min(batch_size, int(1000 / (cpu_usage + 1))))
+        dynamic_batch = max(50, min(batch_size, int(1000 / (cpu_usage + 1))))
 
         addresses_to_check = []
         private_keys = []
@@ -634,7 +630,7 @@ def puzzle_worker(db_filename: str, found_file: str, total_checked, lock, batch_
                 log_queue.put(f"{worker_name}: Puzzle {puzzle_number} aralığı tamamlandı.")
                 return
             
-            current_key_queue.put(private_key)
+            current_key_queue.put(private_key)  # Geçerli anahtarı kuyruğa ekle
             addresses = wallet_gen.generate_addresses(private_key)
             if addresses and target_address in addresses:
                 addresses_to_check = [target_address]
@@ -700,7 +696,7 @@ class WalletCheckerGUI(QMainWindow):
         self.log_queue = self.manager.Queue()
         self.found_queue = self.manager.Queue()
         self.puzzle_found_queue = self.manager.Queue()
-        self.current_key_queue = self.manager.Queue()
+        self.current_key_queue = self.manager.Queue()  # Geçerli anahtar için kuyruk
         self.processes: List[Process] = []
         self.puzzle_processes: List[Process] = []
 
@@ -708,8 +704,8 @@ class WalletCheckerGUI(QMainWindow):
         self.total_addresses = 0
         self.start_time = None
         self.puzzle_start_time = None
-        self.db_filename = DEFAULT_DB
-        self.found_file = DEFAULT_FOUND_FILE
+        self.db_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_DB)
+        self.found_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_FOUND_FILE)
         self.selected_coins = SUPPORTED_COINS
         self.coin_checkboxes = {}
         self.current_language = "Türkçe"
@@ -903,6 +899,7 @@ class WalletCheckerGUI(QMainWindow):
         puzzle_tab = QWidget()
         puzzle_layout = QVBoxLayout(puzzle_tab)
 
+        # Puzzle Seçimi
         select_layout = QHBoxLayout()
         self.puzzle_select_label = QLabel("Puzzle Seçimi:")
         self.puzzle_number_combo = QComboBox()
@@ -912,6 +909,7 @@ class WalletCheckerGUI(QMainWindow):
         select_layout.addWidget(self.puzzle_number_combo)
         puzzle_layout.addLayout(select_layout)
 
+        # Puzzle Adresi
         address_layout = QHBoxLayout()
         self.puzzle_address_label = QLabel("Puzzle Adresi:")
         self.puzzle_address_display = QLineEdit(readOnly=True)
@@ -919,6 +917,7 @@ class WalletCheckerGUI(QMainWindow):
         address_layout.addWidget(self.puzzle_address_display)
         puzzle_layout.addLayout(address_layout)
 
+        # Private Key Aralığı
         range_layout = QVBoxLayout()
         self.puzzle_range_label = QLabel("Private Key Aralığı (Hex):")
         self.puzzle_range_display = QTextEdit(readOnly=True)
@@ -927,6 +926,7 @@ class WalletCheckerGUI(QMainWindow):
         range_layout.addWidget(self.puzzle_range_display)
         puzzle_layout.addLayout(range_layout)
 
+        # Kontrol Düğmeleri
         btn_layout = QHBoxLayout()
         self.puzzle_start_btn = QPushButton("Başlat", clicked=self.start_puzzle_workers)
         self.puzzle_pause_btn = QPushButton("Duraklat", clicked=self.pause_puzzle_workers, enabled=False)
@@ -936,6 +936,7 @@ class WalletCheckerGUI(QMainWindow):
         btn_layout.addWidget(self.puzzle_stop_btn)
         puzzle_layout.addLayout(btn_layout)
 
+        # Durum
         status_layout = QHBoxLayout()
         self.puzzle_status_label = QLabel("Durum:")
         self.puzzle_status_display = QLabel("Durduruldu" if self.current_language == "Türkçe" else "Stopped")
@@ -943,6 +944,7 @@ class WalletCheckerGUI(QMainWindow):
         status_layout.addWidget(self.puzzle_status_display)
         puzzle_layout.addLayout(status_layout)
 
+        # İlerleme Çubuğu
         progress_layout = QHBoxLayout()
         self.puzzle_progress_label = QLabel("İlerleme:")
         self.puzzle_progress_bar = QProgressBar()
@@ -952,6 +954,7 @@ class WalletCheckerGUI(QMainWindow):
         progress_layout.addWidget(self.puzzle_progress_bar)
         puzzle_layout.addLayout(progress_layout)
 
+        # Geçerli Anahtar
         current_key_layout = QHBoxLayout()
         self.puzzle_current_key_label = QLabel("Geçerli Anahtar:")
         self.puzzle_current_key_display = QLineEdit(readOnly=True)
@@ -959,6 +962,7 @@ class WalletCheckerGUI(QMainWindow):
         current_key_layout.addWidget(self.puzzle_current_key_display)
         puzzle_layout.addLayout(current_key_layout)
 
+        # İstatistikler
         stats_layout = QVBoxLayout()
         self.puzzle_stats_label = QLabel("", alignment=Qt.AlignCenter)
         self.puzzle_time_elapsed_label = QLabel("", alignment=Qt.AlignCenter)
@@ -968,6 +972,7 @@ class WalletCheckerGUI(QMainWindow):
         stats_layout.addWidget(self.puzzle_time_remaining_label)
         puzzle_layout.addLayout(stats_layout)
 
+        # Bulunan Private Keyler
         found_layout = QVBoxLayout()
         self.puzzle_found_label = QLabel("Bulunan Private Keyler:")
         self.puzzle_found_table = QTableWidget(0, 2)
@@ -1002,8 +1007,8 @@ class WalletCheckerGUI(QMainWindow):
             with open(CONFIG_FILE, "r") as f:
                 config = json.load(f)
                 self.total_addresses = config.get("total_addresses", 0)
-                self.db_filename = config.get("db_filename", DEFAULT_DB)
-                self.found_file = config.get("found_file", DEFAULT_FOUND_FILE)
+                self.db_filename = config.get("db_filename", self.db_filename)
+                self.found_file = config.get("found_file", self.found_file)
                 self.selected_coins = config.get("selected_coins", SUPPORTED_COINS)
                 self.current_language = config.get("language", "Türkçe")
                 self.db_path_input.setText(self.db_filename)
@@ -1125,20 +1130,6 @@ class WalletCheckerGUI(QMainWindow):
         self.puzzle_range_display.setText(wallet_gen.get_puzzle_range())
         self.puzzle_progress_bar.setValue(0)
         self.puzzle_current_key_display.setText("")
-
-    def adjust_worker_count(self):
-        cpu_usage = psutil.cpu_percent()
-        if cpu_usage > 80 and len(self.processes) > 1:
-            self.stop_workers()
-            new_count = max(1, len(self.processes) - 1)
-            self.workers_spin.setValue(new_count)
-            self.start_workers()
-            self.append_log(f"CPU kullanımı yüksek ({cpu_usage}%), iş parçacığı sayısı azaltıldı: {new_count}")
-        elif cpu_usage < 50 and len(self.processes) < os.cpu_count():
-            self.stop_workers()
-            self.workers_spin.setValue(len(self.processes) + 1)
-            self.start_workers()
-            self.append_log(f"CPU kullanımı düşük ({cpu_usage}%), iş parçacığı sayısı artırıldı: {self.workers_spin.value()}")
 
     def start_workers(self):
         tr = TRANSLATIONS[self.current_language]
@@ -1274,9 +1265,7 @@ class WalletCheckerGUI(QMainWindow):
     def update_stats(self):
         tr = TRANSLATIONS[self.current_language]
         
-        if self.running_flag.value:
-            self.adjust_worker_count()
-
+        # Genel tarama istatistikleri
         if self.running_flag.value and self.start_time:
             elapsed_time_minutes = (datetime.now() - self.start_time).total_seconds() / 60
             speed = self.total_checked.value / max(elapsed_time_minutes, 0.0167)
@@ -1297,6 +1286,7 @@ class WalletCheckerGUI(QMainWindow):
             self.found_table.setItem(row, 0, QTableWidgetItem(private_key))
             self.found_table.setItem(row, 1, QTableWidgetItem(addr))
 
+        # Puzzle tarama istatistikleri
         if self.puzzle_running_flag.value and self.puzzle_start_time and not self.puzzle_paused.value:
             wallet_gen = WalletGenerator([BTC], True, self.puzzle_number)
             total_keys = wallet_gen.get_total_keys()
@@ -1331,6 +1321,7 @@ class WalletCheckerGUI(QMainWindow):
             self.puzzle_found_table.setItem(row, 0, QTableWidgetItem(private_key))
             self.puzzle_found_table.setItem(row, 1, QTableWidgetItem(addr))
 
+        # Geçerli anahtarı güncelle
         while not self.current_key_queue.empty():
             current_key = self.current_key_queue.get()
             self.puzzle_current_key_display.setText(current_key)
@@ -1344,14 +1335,14 @@ class WalletCheckerGUI(QMainWindow):
         self.logs_text.setText('\n'.join(filtered_lines))
 
     def browse_db(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Veritabanı Dosyası Seç", BASE_DIR, "SQLite Files (*.db);;All Files (*)")
+        file_name, _ = QFileDialog.getOpenFileName(self, "Veritabanı Dosyası Seç", "", "SQLite Files (*.db);;All Files (*)")
         if file_name:
             self.db_path_input.setText(file_name)
             self.db_filename = file_name
             self.save_config()
 
     def browse_found_file(self):
-        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Dosyayı Seç", BASE_DIR, "Text Files (*.txt);;All Files (*)")
+        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Dosyayı Seç", "", "Text Files (*.txt);;All Files (*)")
         if file_name:
             self.found_file_input.setText(file_name)
             self.found_file = file_name
@@ -1383,7 +1374,7 @@ class WalletCheckerGUI(QMainWindow):
 
     def add_addresses_from_file(self):
         tr = TRANSLATIONS[self.current_language]
-        file_path, _ = QFileDialog.getOpenFileName(self, "Adres Dosyası Seç", BASE_DIR, "Text Files (*.txt);;All Files (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Adres Dosyası Seç", "", "Text Files (*.txt);;All Files (*)")
         if not file_path:
             return
         
@@ -1470,7 +1461,7 @@ class WalletCheckerGUI(QMainWindow):
             QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
                                "Yedeklenecek bir veritabanı yok!")
             return
-        backup_path, _ = QFileDialog.getSaveFileName(self, "Yedeği Kaydet", BASE_DIR, "SQLite Files (*.db);;All Files (*)")
+        backup_path, _ = QFileDialog.getSaveFileName(self, "Yedeği Kaydet", "", "SQLite Files (*.db);;All Files (*)")
         if backup_path:
             try:
                 shutil.copy(self.db_filename, backup_path)
@@ -1482,7 +1473,7 @@ class WalletCheckerGUI(QMainWindow):
 
     def restore_database(self):
         tr = TRANSLATIONS[self.current_language]
-        restore_path, _ = QFileDialog.getOpenFileName(self, "Yedek Dosyası Seç", BASE_DIR, "SQLite Files (*.db);;All Files (*)")
+        restore_path, _ = QFileDialog.getOpenFileName(self, "Yedek Dosyası Seç", "", "SQLite Files (*.db);;All Files (*)")
         if restore_path:
             try:
                 shutil.copy(restore_path, self.db_filename)
@@ -1500,7 +1491,7 @@ class WalletCheckerGUI(QMainWindow):
                                    "Dışa aktarılacak adres yok.")
             return
         
-        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Adresleri Kaydet", BASE_DIR, "Text Files (*.txt);;All Files (*)")
+        file_name, _ = QFileDialog.getSaveFileName(self, "Bulunan Adresleri Kaydet", "", "Text Files (*.txt);;All Files (*)")
         if file_name:
             try:
                 with open(file_name, "w", encoding="utf-8") as f:
@@ -1565,9 +1556,6 @@ def main():
     window = WalletCheckerGUI()
     window.show()
     sys.exit(app.exec_())
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
