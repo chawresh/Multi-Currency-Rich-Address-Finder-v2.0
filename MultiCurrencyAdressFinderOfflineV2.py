@@ -59,7 +59,6 @@ THE USE OF THE SOFTWARE IMPLIES THAT YOU UNDERSTAND AND ACCEPT THIS DISCLAIMER O
 
 """
 
-
 import os
 import sqlite3
 import random
@@ -82,7 +81,7 @@ from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal, QUrl
 from PyQt5.QtGui import QPixmap, QPalette, QIcon, QDesktopServices
 import sys
 import psutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 # Application directory
@@ -428,199 +427,228 @@ class WalletGenerator:
             return None
 
 class DatabaseManager:
-    @staticmethod
-    def check_addresses(db_filename: str, addresses: List[str]) -> set:
+    def __init__(self, db_filename: str):
+        self.db_filename = db_filename
+        self.conn = None
+        self.cursor = None
+        self.connect()
+
+    def connect(self):
         try:
-            with sqlite3.connect(db_filename) as conn:
-                cursor = conn.cursor()
-                placeholders = ','.join('?' for _ in addresses)
-                cursor.execute(f"SELECT PubKeys FROM DataBase WHERE PubKeys IN ({placeholders})", addresses)
-                return {row[0] for row in cursor.fetchall()}
+            self.conn = sqlite3.connect(self.db_filename)
+            self.cursor = self.conn.cursor()
+            logging.info(f"Database connection established for {self.db_filename}")
+        except sqlite3.Error as e:
+            logging.error(f"Failed to connect to database: {e}")
+            raise
+
+    def close(self):
+        if self.conn:
+            self.conn.close()
+            logging.info(f"Database connection closed for {self.db_filename}")
+
+    def check_addresses(self, addresses: List[str]) -> set:
+        try:
+            placeholders = ','.join('?' for _ in addresses)
+            self.cursor.execute(f"SELECT PubKeys FROM DataBase WHERE PubKeys IN ({placeholders})", addresses)
+            return {row[0] for row in self.cursor.fetchall()}
         except sqlite3.Error as e:
             logging.error(f"Error checking addresses: {e}")
             return set()
 
-    @staticmethod
-    def get_total_addresses(db_filename: str) -> int:
+    def get_total_addresses(self) -> int:
         try:
-            with sqlite3.connect(db_filename) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM DataBase")
-                return cursor.fetchone()[0]
+            self.cursor.execute("SELECT COUNT(*) FROM DataBase")
+            return self.cursor.fetchone()[0]
         except sqlite3.Error as e:
             logging.error(f"Error getting total addresses: {e}")
             return -1
 
-    @staticmethod
-    def add_addresses_from_file(db_filename: str, file_path: str, column_index: int, delimiter: str) -> int:
+    def add_addresses_from_file(self, file_path: str, column_index: int, delimiter: str) -> int:
         added_count = 0
         try:
-            with sqlite3.connect(db_filename) as conn:
-                cursor = conn.cursor()
-                cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
-                with open(file_path, "r", encoding="utf-8") as f:
-                    if delimiter == "None":
-                        for line in f:
-                            address = line.strip()
+            self.cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
+            with open(file_path, "r", encoding="utf-8") as f:
+                if delimiter == "None":
+                    for line in f:
+                        address = line.strip()
+                        if address and len(address) > 20:
+                            self.cursor.execute("INSERT OR IGNORE INTO DataBase (PubKeys) VALUES (?)", (address,))
+                            added_count += self.conn.total_changes
+                else:
+                    reader = csv.reader(f, delimiter=delimiter)
+                    for row in reader:
+                        if len(row) > column_index:
+                            address = row[column_index].strip()
                             if address and len(address) > 20:
-                                cursor.execute("INSERT OR IGNORE INTO DataBase (PubKeys) VALUES (?)", (address,))
-                                added_count += conn.total_changes
-                    else:
-                        reader = csv.reader(f, delimiter=delimiter)
-                        for row in reader:
-                            if len(row) > column_index:
-                                address = row[column_index].strip()
-                                if address and len(address) > 20:
-                                    cursor.execute("INSERT OR IGNORE INTO DataBase (PubKeys) VALUES (?)", (address,))
-                                    added_count += conn.total_changes
-                conn.commit()
+                                self.cursor.execute("INSERT OR IGNORE INTO DataBase (PubKeys) VALUES (?)", (address,))
+                                added_count += self.conn.total_changes
+            self.conn.commit()
             return added_count
         except Exception as e:
             logging.error(f"Error adding addresses from file: {e}")
             return -1
 
-    @staticmethod
-    def create_new_database(db_filename: str) -> bool:
+    def create_new_database(self) -> bool:
         try:
-            with sqlite3.connect(db_filename) as conn:
-                cursor = conn.cursor()
-                cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_pubkeys ON DataBase (PubKeys)")
-                conn.commit()
-            logging.info(f"New database created: {db_filename}")
+            self.cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
+            self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_pubkeys ON DataBase (PubKeys)")
+            self.conn.commit()
+            logging.info(f"New database created: {self.db_filename}")
             return True
         except sqlite3.Error as e:
             logging.error(f"Error creating new database: {e}")
             return False
 
-    @staticmethod
-    def add_test_addresses(db_filename: str):
+    def add_test_addresses(self):
         try:
-            with sqlite3.connect(db_filename) as conn:
-                cursor = conn.cursor()
-                cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
-                test_addresses = ["1Q1pE5vPGEEMqRcVRMbtBK842Y6Pzo6nK9", "1MsHWS1BnwMc3tLE8G35UXsS58fKipzB7a"]
-                for addr in test_addresses:
-                    cursor.execute("INSERT OR IGNORE INTO DataBase (PubKeys) VALUES (?)", (addr,))
-                conn.commit()
+            self.cursor.execute("CREATE TABLE IF NOT EXISTS DataBase (PubKeys TEXT UNIQUE)")
+            test_addresses = ["1Q1pE5vPGEEMqRcVRMbtBK842Y6Pzo6nK9", "1MsHWS1BnwMc3tLE8G35UXsS58fKipzB7a"]
+            for addr in test_addresses:
+                self.cursor.execute("INSERT OR IGNORE INTO DataBase (PubKeys) VALUES (?)", (addr,))
+            self.conn.commit()
             logging.info("Test addresses added to database.")
         except sqlite3.Error as e:
             logging.error(f"Error adding test addresses: {e}")
 
-    @staticmethod
-    def optimize_database(db_filename: str) -> bool:
+    def optimize_database(self) -> bool:
         try:
-            with sqlite3.connect(db_filename) as conn:
-                cursor = conn.cursor()
-                cursor.execute("REINDEX idx_pubkeys")
-                cursor.execute("DELETE FROM DataBase WHERE PubKeys IN (SELECT PubKeys FROM DataBase GROUP BY PubKeys HAVING COUNT(*) > 1)")
-                conn.commit()
-            logging.info(f"Database optimized: {db_filename}")
+            self.cursor.execute("REINDEX idx_pubkeys")
+            self.cursor.execute("DELETE FROM DataBase WHERE PubKeys IN (SELECT PubKeys FROM DataBase GROUP BY PubKeys HAVING COUNT(*) > 1)")
+            self.conn.commit()
+            logging.info(f"Database optimized: {self.db_filename}")
             return True
         except sqlite3.Error as e:
             logging.error(f"Error optimizing database: {e}")
             return False
 
-def worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
-          log_queue: Queue, running_flag, found_queue: Queue, selected_coins: List[str],
-          puzzle_mode: bool = False, puzzle_number: int = None):
-    logging.info(f"{current_process().name}: Worker started.")
-    wallet_gen = WalletGenerator(selected_coins, puzzle_mode, puzzle_number)
-    worker_name = current_process().name
-    target_address = wallet_gen.target_address if puzzle_mode else None
+    @staticmethod
+    def worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
+               log_queue: Queue, running_flag, found_queue: Queue, selected_coins: List[str],
+               puzzle_mode: bool = False, puzzle_number: int = None):
+        logging.info(f"{current_process().name}: Worker started.")
+        db_manager = DatabaseManager(db_filename)  # Süreç boyunca açık kalacak bağlantı
+        wallet_gen = WalletGenerator(selected_coins, puzzle_mode, puzzle_number)
+        worker_name = current_process().name
+        target_address = wallet_gen.target_address if puzzle_mode else None
 
-    while True:
-        with lock:
-            if not running_flag.value:
-                time.sleep(1)
-                continue
+        try:
+            while True:
+                with lock:
+                    if not running_flag.value:
+                        log_queue.put(f"{worker_name}: Paused, waiting for resume.")
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        log_queue.put(f"{worker_name}: Resumed, checking addresses.")
 
-        cpu_usage = psutil.cpu_percent()
-        dynamic_batch = max(50, min(batch_size, int(1000 / (cpu_usage + 1))))
+                cpu_usage = psutil.cpu_percent()
+                dynamic_batch = max(50, min(batch_size, int(1000 / (cpu_usage + 1))))
 
-        addresses_to_check = []
-        private_keys = []
-        for _ in range(dynamic_batch):
-            if puzzle_mode:
-                private_key = wallet_gen.generate_next_puzzle_key()
-                if not private_key:
-                    log_queue.put(f"{worker_name}: Puzzle {puzzle_number} range completed.")
-                    return
-            else:
-                private_key = wallet_gen.generate_private_key()
-            
-            addresses = wallet_gen.generate_addresses(private_key)
-            if addresses:
-                if puzzle_mode:
-                    if target_address in addresses:
+                addresses_to_check = []
+                private_keys = []
+                for _ in range(dynamic_batch):
+                    if puzzle_mode:
+                        private_key = wallet_gen.generate_next_puzzle_key()
+                        if not private_key:
+                            log_queue.put(f"{worker_name}: Puzzle {puzzle_number} range completed.")
+                            break
+                    else:
+                        private_key = wallet_gen.generate_private_key()
+                    
+                    addresses = wallet_gen.generate_addresses(private_key)
+                    if addresses:
+                        if puzzle_mode and target_address in addresses:
+                            addresses_to_check = [target_address]
+                            private_keys = [private_key]
+                            break
+                        else:
+                            addresses_to_check.extend(addresses)
+                            private_keys.extend([private_key] * len(addresses))
+
+                if not addresses_to_check:
+                    continue
+
+                try:
+                    with lock:
+                        total_checked.value += len(addresses_to_check)
+                        found_addresses = db_manager.check_addresses(addresses_to_check)
+                        log_queue.put(f"{worker_name}: Checked {len(addresses_to_check)} addresses, found {len(found_addresses)} matches.")
+                        for addr in found_addresses:
+                            index = addresses_to_check.index(addr)
+                            private_key = private_keys[index]
+                            with open(found_file, "a", encoding="utf-8") as f:
+                                f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
+                            found_queue.put((private_key, addr))
+                            log_queue.put(f"{worker_name} found match: {addr}")
+                except sqlite3.Error as e:
+                    log_queue.put(f"{worker_name}: Database error - {str(e)}")
+                    time.sleep(1)
+                    continue
+        finally:
+            db_manager.close()  # Süreç sona erdiğinde bağlantıyı kapat
+
+    @staticmethod
+    def puzzle_worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
+                      log_queue: Queue, running_flag, found_queue: Queue, puzzle_number: int,
+                      current_key_queue: Queue):
+        logging.info(f"{current_process().name}: Puzzle Worker started.")
+        db_manager = DatabaseManager(db_filename)  # Süreç boyunca açık kalacak bağlantı
+        wallet_gen = WalletGenerator([BTC], True, puzzle_number)
+        worker_name = current_process().name
+        target_address = wallet_gen.target_address
+
+        try:
+            while True:
+                with lock:
+                    if not running_flag.value:
+                        log_queue.put(f"{worker_name}: Paused, waiting for resume.")
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        log_queue.put(f"{worker_name}: Resumed, checking addresses.")
+
+                cpu_usage = psutil.cpu_percent()
+                dynamic_batch = max(50, min(batch_size, int(1000 / (cpu_usage + 1))))
+
+                addresses_to_check = []
+                private_keys = []
+                for _ in range(dynamic_batch):
+                    private_key = wallet_gen.generate_next_puzzle_key()
+                    if not private_key:
+                        log_queue.put(f"{worker_name}: Puzzle {puzzle_number} range completed.")
+                        break
+                    
+                    current_key_queue.put(private_key)
+                    addresses = wallet_gen.generate_addresses(private_key)
+                    if addresses and target_address in addresses:
                         addresses_to_check = [target_address]
                         private_keys = [private_key]
                         break
-                else:
-                    addresses_to_check.extend(addresses)
-                    private_keys.extend([private_key] * len(addresses))
 
-        if not addresses_to_check:
-            continue
+                if not addresses_to_check:
+                    with lock:
+                        total_checked.value += dynamic_batch
+                    continue
 
-        with lock:
-            total_checked.value += len(addresses_to_check)
-            found_addresses = DatabaseManager.check_addresses(db_filename, addresses_to_check)
-            for addr in found_addresses:
-                index = addresses_to_check.index(addr)
-                private_key = private_keys[index]
-                with open(found_file, "a", encoding="utf-8") as f:
-                    f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
-                found_queue.put((private_key, addr))
-                log_queue.put(f"{worker_name} found match: {addr}")
-
-def puzzle_worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
-                  log_queue: Queue, running_flag, found_queue: Queue, puzzle_number: int,
-                  current_key_queue: Queue):
-    logging.info(f"{current_process().name}: Puzzle Worker started.")
-    wallet_gen = WalletGenerator([BTC], True, puzzle_number)
-    worker_name = current_process().name
-    target_address = wallet_gen.target_address
-
-    while True:
-        with lock:
-            if not running_flag.value:
-                time.sleep(1)
-                continue
-
-        cpu_usage = psutil.cpu_percent()
-        dynamic_batch = max(50, min(batch_size, int(1000 / (cpu_usage + 1))))
-
-        addresses_to_check = []
-        private_keys = []
-        for _ in range(dynamic_batch):
-            private_key = wallet_gen.generate_next_puzzle_key()
-            if not private_key:
-                log_queue.put(f"{worker_name}: Puzzle {puzzle_number} range completed.")
-                return
-            
-            current_key_queue.put(private_key)
-            addresses = wallet_gen.generate_addresses(private_key)
-            if addresses and target_address in addresses:
-                addresses_to_check = [target_address]
-                private_keys = [private_key]
-                break
-
-        if not addresses_to_check:
-            with lock:
-                total_checked.value += dynamic_batch
-            continue
-
-        with lock:
-            total_checked.value += len(addresses_to_check)
-            found_addresses = DatabaseManager.check_addresses(db_filename, addresses_to_check)
-            for addr in found_addresses:
-                index = addresses_to_check.index(addr)
-                private_key = private_keys[index]
-                with open(found_file, "a", encoding="utf-8") as f:
-                    f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
-                found_queue.put((private_key, addr))
-                log_queue.put(f"{worker_name} found match: {addr}")
+                try:
+                    with lock:
+                        total_checked.value += len(addresses_to_check)
+                        found_addresses = db_manager.check_addresses(addresses_to_check)
+                        log_queue.put(f"{worker_name}: Checked {len(addresses_to_check)} addresses, found {len(found_addresses)} matches.")
+                        for addr in found_addresses:
+                            index = addresses_to_check.index(addr)
+                            private_key = private_keys[index]
+                            with open(found_file, "a", encoding="utf-8") as f:
+                                f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
+                            found_queue.put((private_key, addr))
+                            log_queue.put(f"{worker_name} found match: {addr}")
+                except sqlite3.Error as e:
+                    log_queue.put(f"{worker_name}: Database error - {str(e)}")
+                    time.sleep(1)
+                    continue
+        finally:
+            db_manager.close()  # Süreç sona erdiğinde bağlantıyı kapat
 
 class LogThread(QThread):
     log_signal = pyqtSignal(str)
@@ -644,13 +672,16 @@ class DbCheckThread(QThread):
     def __init__(self, db_filename: str):
         super().__init__()
         self.db_filename = db_filename
+        self.db_manager = None
 
     def run(self):
-        total = DatabaseManager.get_total_addresses(self.db_filename)
+        self.db_manager = DatabaseManager(self.db_filename)
+        total = self.db_manager.get_total_addresses()
         if total == -1:
             self.error.emit("Failed to get database address count. Check file path.")
         else:
             self.finished.emit(total)
+        self.db_manager.close()
 
 class WalletCheckerGUI(QMainWindow):
     def __init__(self):
@@ -669,17 +700,21 @@ class WalletCheckerGUI(QMainWindow):
         self.processes: List[Process] = []
         self.puzzle_processes: List[Process] = []
 
-        self.db_manager = DatabaseManager()
+        self.db_manager = None  # GUI için ayrı bir bağlantı gerekirse kullanılabilir
         self.total_addresses = 0
         self.start_time = None
         self.puzzle_start_time = None
-        self.db_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_DB)
-        self.found_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_FOUND_FILE)
+        self.total_paused_time = 0
+        self.pause_start_time = None
+        self.puzzle_total_paused_time = 0
+        self.puzzle_pause_start_time = None
+        self.db_filename = os.path.join(BASE_DIR, DEFAULT_DB)
+        self.found_file = os.path.join(BASE_DIR, DEFAULT_FOUND_FILE)
         self.selected_coins = SUPPORTED_COINS
         self.coin_checkboxes = {}
         self.current_language = "Türkçe"
         self.puzzle_number = None
-        self.selected_file_path = None  # To store the selected file path
+        self.selected_file_path = None
 
         self.init_ui()
         self.load_config()
@@ -1356,17 +1391,19 @@ class WalletCheckerGUI(QMainWindow):
         if not os.path.exists(self.db_filename):
             self.create_new_db()
         
-        DatabaseManager.add_test_addresses(self.db_filename)
+        db_manager = DatabaseManager(self.db_filename)
+        db_manager.add_test_addresses()
         test_private_key = "1111111111111111111111111111111111111111111111111111111111111111"
         wallet_gen = WalletGenerator([BTC])
         addresses = wallet_gen.generate_addresses(test_private_key)
         
         if not addresses:
+            db_manager.close()
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                 "Test private key ile adres oluşturulamadı!")
             return
 
-        found_addresses = DatabaseManager.check_addresses(self.db_filename, addresses)
+        found_addresses = db_manager.check_addresses(addresses)
         
         if found_addresses:
             for addr in found_addresses:
@@ -1380,6 +1417,7 @@ class WalletCheckerGUI(QMainWindow):
             self.append_log(tr["test_address_not_found"])
             QMessageBox.warning(self, "Test Sonucu" if self.current_language == "Türkçe" else "Test Result",
                                tr["test_fail"])
+        db_manager.close()
 
     def change_language(self, lang: str):
         self.current_language = lang
@@ -1397,6 +1435,14 @@ class WalletCheckerGUI(QMainWindow):
     def start_workers(self):
         tr = TRANSLATIONS[self.current_language]
         if not self.running_flag.value:
+            if self.processes:
+                for p in self.processes:
+                    p.terminate()
+                for p in self.processes:
+                    p.join()
+                self.processes.clear()
+                self.append_log("Existing processes terminated before restart.")
+
             if not self.selected_coins:
                 QMessageBox.warning(self, "Uyarı" if self.current_language == "Türkçe" else "Warning",
                                    "Lütfen en az bir kripto para birimi seçin!" if self.current_language == "Türkçe" else "Please select at least one cryptocurrency!")
@@ -1415,13 +1461,17 @@ class WalletCheckerGUI(QMainWindow):
             num_workers = os.cpu_count() if self.auto_workers_check.isChecked() else self.workers_spin.value()
             
             for _ in range(num_workers):
-                p = Process(target=worker, args=(self.db_filename, self.found_file, self.total_checked,
-                                                self.lock, self.batch_size_spin.value(), self.log_queue, self.running_flag,
-                                                self.found_queue, self.selected_coins))
+                p = Process(target=DatabaseManager.worker, args=(self.db_filename, self.found_file, self.total_checked,
+                                                                self.lock, self.batch_size_spin.value(), self.log_queue, self.running_flag,
+                                                                self.found_queue, self.selected_coins))
                 p.start()
                 self.processes.append(p)
             self.running_flag.value = True
-            self.start_time = datetime.now()
+            if not self.start_time:  # Fresh start
+                self.start_time = datetime.now()
+                self.total_paused_time = 0
+                # Uncomment if you want total_checked to reset on fresh start
+                # self.total_checked.value = 0
             self.start_btn.setEnabled(False)
             self.pause_btn.setEnabled(True)
             self.stop_btn.setEnabled(True)
@@ -1432,11 +1482,14 @@ class WalletCheckerGUI(QMainWindow):
         if self.running_flag.value:
             self.running_flag.value = False
             self.pause_btn.setText(tr["resume"])
+            self.pause_start_time = datetime.now()
             self.append_log(tr["processes_paused"])
+            self.start_btn.setEnabled(True)
         else:
-            self.running_flag.value = True
-            self.pause_btn.setText(tr["pause"])
-            self.append_log(tr["processes_resumed"])
+            if self.pause_start_time:
+                self.total_paused_time += (datetime.now() - self.pause_start_time).total_seconds()
+                self.pause_start_time = None
+            self.start_workers()
 
     def stop_workers(self):
         tr = TRANSLATIONS[self.current_language]
@@ -1453,10 +1506,22 @@ class WalletCheckerGUI(QMainWindow):
             self.stop_btn.setEnabled(False)
             self.append_log(tr["processes_stopped"])
             self.start_time = None
+            self.total_paused_time = 0
+            self.pause_start_time = None
+            # Uncomment if you want total_checked to reset on stop
+            # self.total_checked.value = 0
 
     def start_puzzle_workers(self):
         tr = TRANSLATIONS[self.current_language]
         if not self.puzzle_running_flag.value:
+            if self.puzzle_processes:
+                for p in self.puzzle_processes:
+                    p.terminate()
+                for p in self.puzzle_processes:
+                    p.join()
+                self.puzzle_processes.clear()
+                self.append_log("Existing puzzle processes terminated before restart.")
+
             if not os.path.exists(self.db_filename):
                 reply = QMessageBox.question(self, "Veritabanı Bulunamadı" if self.current_language == "Türkçe" else "Database Not Found",
                                             tr["new_db_created"].split(':')[0] + ". Yeni bir veritabanı oluşturmak ister misiniz?" if self.current_language == "Türkçe" else "Database not found. Would you like to create a new one?",
@@ -1472,18 +1537,22 @@ class WalletCheckerGUI(QMainWindow):
                 QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                     tr["invalid_puzzle"])
                 return
-            
+
             num_workers = os.cpu_count() or 4
             for _ in range(num_workers):
-                p = Process(target=puzzle_worker, args=(self.db_filename, self.found_file, self.puzzle_total_checked,
-                                                       self.lock, self.batch_size_spin.value(), self.log_queue,
-                                                       self.puzzle_running_flag, self.puzzle_found_queue, self.puzzle_number,
-                                                       self.current_key_queue))
+                p = Process(target=DatabaseManager.puzzle_worker, args=(self.db_filename, self.found_file, self.puzzle_total_checked,
+                                                                       self.lock, self.batch_size_spin.value(), self.log_queue,
+                                                                       self.puzzle_running_flag, self.puzzle_found_queue, self.puzzle_number,
+                                                                       self.current_key_queue))
                 p.start()
                 self.puzzle_processes.append(p)
             self.puzzle_running_flag.value = True
             self.puzzle_paused.value = False
-            self.puzzle_start_time = datetime.now()
+            if not self.puzzle_start_time:  # Fresh start
+                self.puzzle_start_time = datetime.now()
+                self.puzzle_total_paused_time = 0
+                # Uncomment if you want puzzle_total_checked to reset on fresh start
+                # self.puzzle_total_checked.value = 0
             self.puzzle_start_btn.setEnabled(False)
             self.puzzle_pause_btn.setEnabled(True)
             self.puzzle_stop_btn.setEnabled(True)
@@ -1496,15 +1565,16 @@ class WalletCheckerGUI(QMainWindow):
             if not self.puzzle_paused.value:
                 self.puzzle_running_flag.value = False
                 self.puzzle_paused.value = True
+                self.puzzle_pause_start_time = datetime.now()
                 self.puzzle_pause_btn.setText(tr["resume"])
                 self.puzzle_status_display.setText(tr["pause"])
                 self.append_log(f"Puzzle {self.puzzle_number} tarama süreçleri duraklatıldı." if self.current_language == "Türkçe" else f"Puzzle {self.puzzle_number} scanning processes paused.")
-            else:
-                self.puzzle_running_flag.value = True
-                self.puzzle_paused.value = False
-                self.puzzle_pause_btn.setText(tr["pause"])
-                self.puzzle_status_display.setText("Çalışıyor..." if self.current_language == "Türkçe" else "Running...")
-                self.append_log(f"Puzzle {self.puzzle_number} tarama süreçleri devam ettirildi." if self.current_language == "Türkçe" else f"Puzzle {self.puzzle_number} scanning processes resumed.")
+                self.puzzle_start_btn.setEnabled(True)
+        else:
+            if self.puzzle_pause_start_time:
+                self.puzzle_total_paused_time += (datetime.now() - self.puzzle_pause_start_time).total_seconds()
+                self.puzzle_pause_start_time = None
+            self.start_puzzle_workers()
 
     def stop_puzzle_workers(self):
         tr = TRANSLATIONS[self.current_language]
@@ -1523,22 +1593,36 @@ class WalletCheckerGUI(QMainWindow):
             self.puzzle_status_display.setText(tr["stop"])
             self.append_log(f"Puzzle {self.puzzle_number} tarama süreçleri durduruldu." if self.current_language == "Türkçe" else f"Puzzle {self.puzzle_number} scanning processes stopped.")
             self.puzzle_start_time = None
+            self.puzzle_total_paused_time = 0
+            self.puzzle_pause_start_time = None
             self.puzzle_progress_bar.setValue(0)
+            # Uncomment if you want puzzle_total_checked to reset on stop
+            # self.puzzle_total_checked.value = 0
 
     def update_stats(self):
         tr = TRANSLATIONS[self.current_language]
         
+        # Normal mode stats
         if self.running_flag.value and self.start_time:
-            elapsed_time = datetime.now() - self.start_time
-            elapsed_minutes = elapsed_time.total_seconds() / 60
-            speed = self.total_checked.value / max(elapsed_minutes, 0.0167)
+            total_elapsed_time = (datetime.now() - self.start_time).total_seconds()
+            active_time_seconds = total_elapsed_time - self.total_paused_time
+            if self.pause_start_time:
+                active_time_seconds -= (datetime.now() - self.pause_start_time).total_seconds()
+            active_time_minutes = max(active_time_seconds / 60, 0.0167)
+            speed = self.total_checked.value / active_time_minutes if active_time_seconds > 0 else 0
             status_msg = f"Çalışıyor... ({len(self.processes)} worker aktif)" if self.current_language == "Türkçe" else f"Running... ({len(self.processes)} workers active)"
-            uptime_str = str(elapsed_time).split('.')[0]
+            uptime_str = str(timedelta(seconds=int(active_time_seconds))).split('.')[0]
             self.uptime_label.setText(tr["uptime"].format(uptime_str))
         else:
             speed = 0
             status_msg = tr["stop"]
-            self.uptime_label.setText(tr["uptime"].format("0:00:00"))
+            if self.start_time and self.pause_start_time:  # Show uptime up to last pause
+                total_elapsed_time = (self.pause_start_time - self.start_time).total_seconds()
+                active_time_seconds = total_elapsed_time - self.total_paused_time
+                uptime_str = str(timedelta(seconds=int(active_time_seconds))).split('.')[0]
+                self.uptime_label.setText(tr["uptime"].format(uptime_str))
+            else:
+                self.uptime_label.setText(tr["uptime"].format("0:00:00"))
         
         cpu_usage = psutil.cpu_percent(interval=0.1)
         memory_usage = psutil.virtual_memory().percent
@@ -1559,12 +1643,14 @@ class WalletCheckerGUI(QMainWindow):
         if self.found_table.rowCount() == 0:
             self.last_found_label.setText(tr["last_found"].format(tr["none"]))
 
+        # Puzzle mode stats
         if self.puzzle_running_flag.value and self.puzzle_start_time and not self.puzzle_paused.value:
             wallet_gen = WalletGenerator([BTC], True, self.puzzle_number)
             total_keys = wallet_gen.get_total_keys()
-            elapsed_time_seconds = (datetime.now() - self.puzzle_start_time).total_seconds()
-            elapsed_time_str = time.strftime("%H:%M:%S", time.gmtime(elapsed_time_seconds))
-            puzzle_speed = self.puzzle_total_checked.value / max(elapsed_time_seconds / 60, 0.0167)
+            total_elapsed_time = (datetime.now() - self.puzzle_start_time).total_seconds()
+            active_time_seconds = total_elapsed_time - self.puzzle_total_paused_time
+            elapsed_time_str = time.strftime("%H:%M:%S", time.gmtime(active_time_seconds))
+            puzzle_speed = self.puzzle_total_checked.value / max(active_time_seconds / 60, 0.0167) if active_time_seconds > 0 else 0
             progress = (self.puzzle_total_checked.value / total_keys) * 100 if total_keys > 0 else 0
             remaining_keys = total_keys - self.puzzle_total_checked.value
             remaining_time_seconds = remaining_keys / (puzzle_speed * 60) if puzzle_speed > 0 else 0
@@ -1583,6 +1669,11 @@ class WalletCheckerGUI(QMainWindow):
             if not self.puzzle_running_flag.value:
                 self.puzzle_time_elapsed_label.setText("")
                 self.puzzle_time_remaining_label.setText("")
+            elif self.puzzle_pause_start_time:
+                total_elapsed_time = (self.puzzle_pause_start_time - self.puzzle_start_time).total_seconds()
+                active_time_seconds = total_elapsed_time - self.puzzle_total_paused_time
+                elapsed_time_str = time.strftime("%H:%M:%S", time.gmtime(active_time_seconds))
+                self.puzzle_time_elapsed_label.setText(tr["elapsed_time"].format(elapsed_time_str))
 
         self.puzzle_status_display.setText(puzzle_status_msg)
 
@@ -1632,13 +1723,16 @@ class WalletCheckerGUI(QMainWindow):
                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.No:
                 return False
-        if DatabaseManager.create_new_database(self.db_filename):
+        db_manager = DatabaseManager(self.db_filename)
+        if db_manager.create_new_database():
             self.append_log(tr["new_db_created"].format(self.db_filename))
             self.status_bar.showMessage(tr["new_db_created"].format(self.db_filename))
             self.total_addresses = 0
             self.save_config()
+            db_manager.close()
             return True
         else:
+            db_manager.close()
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                 "Yeni veritabanı oluşturulamadı!" if self.current_language == "Türkçe" else "Failed to create new database!")
             return False
@@ -1683,7 +1777,8 @@ class WalletCheckerGUI(QMainWindow):
         delimiter = delimiter_map[self.delimiter_combo.currentText()]
         self.status_bar.showMessage("Dosyadan adresler ekleniyor..." if self.current_language == "Türkçe" else "Adding addresses from file...")
 
-        added_count = self.db_manager.add_addresses_from_file(self.db_filename, self.selected_file_path, column_index, delimiter)
+        db_manager = DatabaseManager(self.db_filename)
+        added_count = db_manager.add_addresses_from_file(self.selected_file_path, column_index, delimiter)
         if added_count >= 0:
             self.append_log(tr["addresses_added"].format(self.selected_file_path, added_count))
             self.status_bar.showMessage(f"{added_count} adres eklendi" if self.current_language == "Türkçe" else f"{added_count} addresses added")
@@ -1692,6 +1787,7 @@ class WalletCheckerGUI(QMainWindow):
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                 "Dosyadan adresler eklenemedi!" if self.current_language == "Türkçe" else "Failed to add addresses from file!")
             self.status_bar.showMessage("Adres ekleme başarısız" if self.current_language == "Türkçe" else "Address addition failed")
+        db_manager.close()
 
     def update_address_count(self):
         tr = TRANSLATIONS[self.current_language]
@@ -1733,12 +1829,14 @@ class WalletCheckerGUI(QMainWindow):
 
     def optimize_database(self):
         tr = TRANSLATIONS[self.current_language]
-        if DatabaseManager.optimize_database(self.db_filename):
+        db_manager = DatabaseManager(self.db_filename)
+        if db_manager.optimize_database():
             self.append_log(tr["db_optimized"])
             self.update_address_count()
         else:
             QMessageBox.critical(self, "Hata" if self.current_language == "Türkçe" else "Error",
                                 "Veritabanı optimizasyonu başarısız!" if self.current_language == "Türkçe" else "Database optimization failed!")
+        db_manager.close()
 
     def backup_database(self):
         tr = TRANSLATIONS[self.current_language]
