@@ -58,7 +58,6 @@ THE USE OF THE SOFTWARE IMPLIES THAT YOU UNDERSTAND AND ACCEPT THIS DISCLAIMER O
 
 
 """
-
 import os
 import sqlite3
 import random
@@ -84,10 +83,10 @@ import psutil
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-# Application directory
+# Uygulama dizini
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Logging setup
+# Loglama ayarları
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -97,7 +96,7 @@ logging.basicConfig(
     ]
 )
 
-# Constants
+# Sabitler
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 DEFAULT_DB = os.path.join(BASE_DIR, "PubKeys.db")
 DEFAULT_FOUND_FILE = os.path.join(BASE_DIR, "found.txt")
@@ -112,9 +111,9 @@ COIN_SYMBOLS = {
     LTC: "Ł LTC",
     "ALL": "ALL"
 }
-SUPPORTED_COINS = list(COIN_SYMBOLS.keys())[:-1]  # Exclude "ALL"
+SUPPORTED_COINS = list(COIN_SYMBOLS.keys())[:-1]  # "ALL" hariç
 
-# Unsolved Puzzle Addresses
+# Çözülmemiş Bitcoin Puzzle Adresleri
 UNSOLVED_PUZZLES = {
     68: "1MVDYgVaSN6iKKEsbzRUAYFrYJadLYZvvZ",
     69: "19vkiEajfhuZ8bs8Zu2jgmC6oqZbWqhxhG",
@@ -198,7 +197,7 @@ UNSOLVED_PUZZLES = {
     160: "1NBC8uXJy1GiJ6drkiZa1WuKn51ps7EPTv"
 }
 
-# Language support
+# Dil desteği
 TRANSLATIONS = {
     "Türkçe": {
         "window_title": "Çoklu Para Birimi Zengin Adres Bulucu v2.0",
@@ -522,12 +521,13 @@ class DatabaseManager:
             logging.error(f"Error optimizing database: {e}")
             return False
 
+    # Normal mod için işçi fonksiyonu
     @staticmethod
     def worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
                log_queue: Queue, running_flag, found_queue: Queue, selected_coins: List[str],
                puzzle_mode: bool = False, puzzle_number: int = None):
         logging.info(f"{current_process().name}: Worker started.")
-        db_manager = DatabaseManager(db_filename)  # Süreç boyunca açık kalacak bağlantı
+        db_manager = DatabaseManager(db_filename)
         wallet_gen = WalletGenerator(selected_coins, puzzle_mode, puzzle_number)
         worker_name = current_process().name
         target_address = wallet_gen.target_address if puzzle_mode else None
@@ -569,31 +569,30 @@ class DatabaseManager:
                 if not addresses_to_check:
                     continue
 
-                try:
-                    with lock:
-                        total_checked.value += len(addresses_to_check)
-                        found_addresses = db_manager.check_addresses(addresses_to_check)
-                        log_queue.put(f"{worker_name}: Checked {len(addresses_to_check)} addresses, found {len(found_addresses)} matches.")
-                        for addr in found_addresses:
-                            index = addresses_to_check.index(addr)
-                            private_key = private_keys[index]
-                            with open(found_file, "a", encoding="utf-8") as f:
-                                f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
-                            found_queue.put((private_key, addr))
-                            log_queue.put(f"{worker_name} found match: {addr}")
-                except sqlite3.Error as e:
-                    log_queue.put(f"{worker_name}: Database error - {str(e)}")
-                    time.sleep(1)
-                    continue
+                with lock:
+                    total_checked.value += len(addresses_to_check)  # Tüm thread'ler için toplam sayacı artır
+                    found_addresses = db_manager.check_addresses(addresses_to_check)
+                    log_queue.put(f"{worker_name}: Checked {len(addresses_to_check)} addresses, found {len(found_addresses)} matches.")
+                    for addr in found_addresses:
+                        index = addresses_to_check.index(addr)
+                        private_key = private_keys[index]
+                        with open(found_file, "a", encoding="utf-8") as f:
+                            f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
+                        found_queue.put((private_key, addr))
+                        log_queue.put(f"{worker_name} found match: {addr}")
+        except sqlite3.Error as e:
+            log_queue.put(f"{worker_name}: Database error - {str(e)}")
+            time.sleep(1)
         finally:
-            db_manager.close()  # Süreç sona erdiğinde bağlantıyı kapat
+            db_manager.close()
 
+    # Puzzle modu için işçi fonksiyonu
     @staticmethod
     def puzzle_worker(db_filename: str, found_file: str, total_checked, lock, batch_size: int,
                       log_queue: Queue, running_flag, found_queue: Queue, puzzle_number: int,
                       current_key_queue: Queue):
         logging.info(f"{current_process().name}: Puzzle Worker started.")
-        db_manager = DatabaseManager(db_filename)  # Süreç boyunca açık kalacak bağlantı
+        db_manager = DatabaseManager(db_filename)
         wallet_gen = WalletGenerator([BTC], True, puzzle_number)
         worker_name = current_process().name
         target_address = wallet_gen.target_address
@@ -628,27 +627,25 @@ class DatabaseManager:
 
                 if not addresses_to_check:
                     with lock:
-                        total_checked.value += dynamic_batch
+                        total_checked.value += dynamic_batch  # Tüm thread'ler için toplam sayacı artır
                     continue
 
-                try:
-                    with lock:
-                        total_checked.value += len(addresses_to_check)
-                        found_addresses = db_manager.check_addresses(addresses_to_check)
-                        log_queue.put(f"{worker_name}: Checked {len(addresses_to_check)} addresses, found {len(found_addresses)} matches.")
-                        for addr in found_addresses:
-                            index = addresses_to_check.index(addr)
-                            private_key = private_keys[index]
-                            with open(found_file, "a", encoding="utf-8") as f:
-                                f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
-                            found_queue.put((private_key, addr))
-                            log_queue.put(f"{worker_name} found match: {addr}")
-                except sqlite3.Error as e:
-                    log_queue.put(f"{worker_name}: Database error - {str(e)}")
-                    time.sleep(1)
-                    continue
+                with lock:
+                    total_checked.value += len(addresses_to_check)  # Tüm thread'ler için toplam sayacı artır
+                    found_addresses = db_manager.check_addresses(addresses_to_check)
+                    log_queue.put(f"{worker_name}: Checked {len(addresses_to_check)} addresses, found {len(found_addresses)} matches.")
+                    for addr in found_addresses:
+                        index = addresses_to_check.index(addr)
+                        private_key = private_keys[index]
+                        with open(found_file, "a", encoding="utf-8") as f:
+                            f.write(f"Match found! Private Key: {private_key}, Address: {addr}\n")
+                        found_queue.put((private_key, addr))
+                        log_queue.put(f"{worker_name} found match: {addr}")
+        except sqlite3.Error as e:
+            log_queue.put(f"{worker_name}: Database error - {str(e)}")
+            time.sleep(1)
         finally:
-            db_manager.close()  # Süreç sona erdiğinde bağlantıyı kapat
+            db_manager.close()
 
 class LogThread(QThread):
     log_signal = pyqtSignal(str)
@@ -687,8 +684,7 @@ class WalletCheckerGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.manager = Manager()
-        self.total_checked = self.manager.Value('i', 0)
-        self.puzzle_total_checked = self.manager.Value('i', 0)
+        self.total_checked = self.manager.Value('i', 0)  # Tüm thread'ler için tek sayaç
         self.lock = self.manager.Lock()
         self.running_flag = self.manager.Value('b', False)
         self.puzzle_running_flag = self.manager.Value('b', False)
@@ -700,7 +696,7 @@ class WalletCheckerGUI(QMainWindow):
         self.processes: List[Process] = []
         self.puzzle_processes: List[Process] = []
 
-        self.db_manager = None  # GUI için ayrı bir bağlantı gerekirse kullanılabilir
+        self.db_manager = None
         self.total_addresses = 0
         self.start_time = None
         self.puzzle_start_time = None
@@ -1235,11 +1231,11 @@ class WalletCheckerGUI(QMainWindow):
 
         stats_text = QTextEdit(readOnly=True)
         stats_content = (
-            f"Toplam Tarama: {self.total_checked.value + self.puzzle_total_checked.value} adres\n"
+            f"Toplam Tarama: {self.total_checked.value} adres\n"  # Tek sayaç kullanıyoruz
             f"Kayıtlı Adres Sayısı: {self.total_addresses}\n"
             f"Tema: {'Koyu Mod' if is_dark_mode else 'Açık Mod'}"
         ) if self.current_language == "Türkçe" else (
-            f"Total Scans: {self.total_checked.value + self.puzzle_total_checked.value} addresses\n"
+            f"Total Scans: {self.total_checked.value} addresses\n"  # Tek sayaç
             f"Registered Addresses: {self.total_addresses}\n"
             f"Theme: {'Dark Mode' if is_dark_mode else 'Light Mode'}"
         )
@@ -1467,11 +1463,9 @@ class WalletCheckerGUI(QMainWindow):
                 p.start()
                 self.processes.append(p)
             self.running_flag.value = True
-            if not self.start_time:  # Fresh start
+            if not self.start_time:  # İlk başlangıç
                 self.start_time = datetime.now()
                 self.total_paused_time = 0
-                # Uncomment if you want total_checked to reset on fresh start
-                # self.total_checked.value = 0
             self.start_btn.setEnabled(False)
             self.pause_btn.setEnabled(True)
             self.stop_btn.setEnabled(True)
@@ -1508,8 +1502,6 @@ class WalletCheckerGUI(QMainWindow):
             self.start_time = None
             self.total_paused_time = 0
             self.pause_start_time = None
-            # Uncomment if you want total_checked to reset on stop
-            # self.total_checked.value = 0
 
     def start_puzzle_workers(self):
         tr = TRANSLATIONS[self.current_language]
@@ -1540,7 +1532,7 @@ class WalletCheckerGUI(QMainWindow):
 
             num_workers = os.cpu_count() or 4
             for _ in range(num_workers):
-                p = Process(target=DatabaseManager.puzzle_worker, args=(self.db_filename, self.found_file, self.puzzle_total_checked,
+                p = Process(target=DatabaseManager.puzzle_worker, args=(self.db_filename, self.found_file, self.total_checked,
                                                                        self.lock, self.batch_size_spin.value(), self.log_queue,
                                                                        self.puzzle_running_flag, self.puzzle_found_queue, self.puzzle_number,
                                                                        self.current_key_queue))
@@ -1548,11 +1540,9 @@ class WalletCheckerGUI(QMainWindow):
                 self.puzzle_processes.append(p)
             self.puzzle_running_flag.value = True
             self.puzzle_paused.value = False
-            if not self.puzzle_start_time:  # Fresh start
+            if not self.puzzle_start_time:  # İlk başlangıç
                 self.puzzle_start_time = datetime.now()
                 self.puzzle_total_paused_time = 0
-                # Uncomment if you want puzzle_total_checked to reset on fresh start
-                # self.puzzle_total_checked.value = 0
             self.puzzle_start_btn.setEnabled(False)
             self.puzzle_pause_btn.setEnabled(True)
             self.puzzle_stop_btn.setEnabled(True)
@@ -1596,13 +1586,11 @@ class WalletCheckerGUI(QMainWindow):
             self.puzzle_total_paused_time = 0
             self.puzzle_pause_start_time = None
             self.puzzle_progress_bar.setValue(0)
-            # Uncomment if you want puzzle_total_checked to reset on stop
-            # self.puzzle_total_checked.value = 0
 
     def update_stats(self):
         tr = TRANSLATIONS[self.current_language]
         
-        # Normal mode stats
+        # Normal mod istatistikleri
         if self.running_flag.value and self.start_time:
             total_elapsed_time = (datetime.now() - self.start_time).total_seconds()
             active_time_seconds = total_elapsed_time - self.total_paused_time
@@ -1616,7 +1604,7 @@ class WalletCheckerGUI(QMainWindow):
         else:
             speed = 0
             status_msg = tr["stop"]
-            if self.start_time and self.pause_start_time:  # Show uptime up to last pause
+            if self.start_time and self.pause_start_time:  # Son duraklatmaya kadar geçen süreyi göster
                 total_elapsed_time = (self.pause_start_time - self.start_time).total_seconds()
                 active_time_seconds = total_elapsed_time - self.total_paused_time
                 uptime_str = str(timedelta(seconds=int(active_time_seconds))).split('.')[0]
@@ -1643,28 +1631,28 @@ class WalletCheckerGUI(QMainWindow):
         if self.found_table.rowCount() == 0:
             self.last_found_label.setText(tr["last_found"].format(tr["none"]))
 
-        # Puzzle mode stats
+        # Puzzle modu istatistikleri
         if self.puzzle_running_flag.value and self.puzzle_start_time and not self.puzzle_paused.value:
             wallet_gen = WalletGenerator([BTC], True, self.puzzle_number)
             total_keys = wallet_gen.get_total_keys()
             total_elapsed_time = (datetime.now() - self.puzzle_start_time).total_seconds()
             active_time_seconds = total_elapsed_time - self.puzzle_total_paused_time
             elapsed_time_str = time.strftime("%H:%M:%S", time.gmtime(active_time_seconds))
-            puzzle_speed = self.puzzle_total_checked.value / max(active_time_seconds / 60, 0.0167) if active_time_seconds > 0 else 0
-            progress = (self.puzzle_total_checked.value / total_keys) * 100 if total_keys > 0 else 0
-            remaining_keys = total_keys - self.puzzle_total_checked.value
+            puzzle_speed = self.total_checked.value / max(active_time_seconds / 60, 0.0167) if active_time_seconds > 0 else 0
+            progress = (self.total_checked.value / total_keys) * 100 if total_keys > 0 else 0
+            remaining_keys = total_keys - self.total_checked.value
             remaining_time_seconds = remaining_keys / (puzzle_speed * 60) if puzzle_speed > 0 else 0
             remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(remaining_time_seconds))
             puzzle_status_msg = f"Çalışıyor... ({len(self.puzzle_processes)} worker aktif)" if self.current_language == "Türkçe" else f"Running... ({len(self.puzzle_processes)} workers active)"
             self.puzzle_progress_bar.setValue(int(progress))
-            self.puzzle_stats_label.setText(f"{tr['total_checked'].format(self.puzzle_total_checked.value)}\n"
+            self.puzzle_stats_label.setText(f"{tr['total_checked'].format(self.total_checked.value)}\n"
                                             f"{tr['speed'].format(puzzle_speed)}")
             self.puzzle_time_elapsed_label.setText(tr["elapsed_time"].format(elapsed_time_str))
             self.puzzle_time_remaining_label.setText(tr["remaining_time"].format(remaining_time_str))
         else:
             puzzle_speed = 0
             puzzle_status_msg = tr["pause"] if self.puzzle_paused.value else tr["stop"]
-            self.puzzle_stats_label.setText(f"{tr['total_checked'].format(self.puzzle_total_checked.value)}\n"
+            self.puzzle_stats_label.setText(f"{tr['total_checked'].format(self.total_checked.value)}\n"
                                             f"{tr['speed'].format(puzzle_speed)}")
             if not self.puzzle_running_flag.value:
                 self.puzzle_time_elapsed_label.setText("")
