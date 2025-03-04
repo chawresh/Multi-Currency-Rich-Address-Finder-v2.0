@@ -389,6 +389,7 @@ class WalletGenerator:
     @staticmethod
     def generate_private_key() -> str:
         return "".join(random.choice("0123456789abcdef") for _ in range(64))
+        #return "".join(random.choice("11111111111111111") for _ in range(64)) # test için
 
     def generate_next_puzzle_key(self) -> str:
         if len(self.checked_keys) >= self.get_total_keys():
@@ -1590,7 +1591,7 @@ class WalletCheckerGUI(QMainWindow):
     def update_stats(self):
         tr = TRANSLATIONS[self.current_language]
         
-        # Normal mod istatistikleri
+        # Normal mod stats (unchanged)
         if self.running_flag.value and self.start_time:
             total_elapsed_time = (datetime.now() - self.start_time).total_seconds()
             active_time_seconds = total_elapsed_time - self.total_paused_time
@@ -1604,7 +1605,7 @@ class WalletCheckerGUI(QMainWindow):
         else:
             speed = 0
             status_msg = tr["stop"]
-            if self.start_time and self.pause_start_time:  # Son duraklatmaya kadar geçen süreyi göster
+            if self.start_time and self.pause_start_time:
                 total_elapsed_time = (self.pause_start_time - self.start_time).total_seconds()
                 active_time_seconds = total_elapsed_time - self.total_paused_time
                 uptime_str = str(timedelta(seconds=int(active_time_seconds))).split('.')[0]
@@ -1617,8 +1618,8 @@ class WalletCheckerGUI(QMainWindow):
         self.resource_label.setText(tr["resources"].format(cpu_usage, memory_usage))
         
         self.stats_label.setText(f"{tr['total_checked'].format(self.total_checked.value)}\n"
-                                f"{tr['total_in_db'].format(self.total_addresses)}\n"
-                                f"{tr['speed'].format(speed)}")
+                                 f"{tr['total_in_db'].format(self.total_addresses)}\n"
+                                 f"{tr['speed'].format(speed)}")
         self.status_bar.showMessage(status_msg)
 
         while not self.found_queue.empty():
@@ -1631,7 +1632,7 @@ class WalletCheckerGUI(QMainWindow):
         if self.found_table.rowCount() == 0:
             self.last_found_label.setText(tr["last_found"].format(tr["none"]))
 
-        # Puzzle modu istatistikleri
+        # Puzzle mode stats
         if self.puzzle_running_flag.value and self.puzzle_start_time and not self.puzzle_paused.value:
             wallet_gen = WalletGenerator([BTC], True, self.puzzle_number)
             total_keys = wallet_gen.get_total_keys()
@@ -1641,8 +1642,14 @@ class WalletCheckerGUI(QMainWindow):
             puzzle_speed = self.total_checked.value / max(active_time_seconds / 60, 0.0167) if active_time_seconds > 0 else 0
             progress = (self.total_checked.value / total_keys) * 100 if total_keys > 0 else 0
             remaining_keys = total_keys - self.total_checked.value
-            remaining_time_seconds = remaining_keys / (puzzle_speed * 60) if puzzle_speed > 0 else 0
-            remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(remaining_time_seconds))
+            
+            # Handle large remaining time
+            remaining_time_seconds = remaining_keys / (puzzle_speed * 60) if puzzle_speed > 0 else float('inf')
+            if remaining_time_seconds > 9e18:  # Beyond 64-bit time_t max
+                remaining_time_str = "> 292 milyar yıl" if self.current_language == "Türkçe" else "> 292 billion years"
+            else:
+                remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(remaining_time_seconds))
+
             puzzle_status_msg = f"Çalışıyor... ({len(self.puzzle_processes)} worker aktif)" if self.current_language == "Türkçe" else f"Running... ({len(self.puzzle_processes)} workers active)"
             self.puzzle_progress_bar.setValue(int(progress))
             self.puzzle_stats_label.setText(f"{tr['total_checked'].format(self.total_checked.value)}\n"
