@@ -17,7 +17,7 @@ Multi Currency Rich Address Finder is a Python-based tool designed to generate a
 
 ## Features
 - Supports multiple cryptocurrencies with various address formats (P2PKH, P2WPKH, P2SH, etc.)
-- Multithreaded address generation and checking for high performance
+- Multithreaded address generation and checking for high performance 
 - SQLite database integration for managing public keys
 - Intuitive PyQt5 GUI with real-time logs and results
 - Multi-language support (English and Turkish)
